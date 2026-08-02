@@ -129,6 +129,7 @@ public final class InstantNbtRuntime {
 		networkRuntime.configure(config.deltaSync, config.snapshotSync, config.integratedDirectPass, config.packetBatching);
 		OwnedTag.configureCow(featureRegistry.isEnabled(FeatureRegistry.FEAT_COW), CowStrategy.SHALLOW_FIRST, 4);
 		sharedTags.setSuppressed(!config.sharedTagEnabled || !featureRegistry.isEnabled(FeatureRegistry.FEAT_SHARED_TAG));
+		com.github.misosouptgit.instantnbt.network.SyncPackets.register();
 
 		if (config.diagnosticsCommand) {
 			CommandsBootstrap.register();

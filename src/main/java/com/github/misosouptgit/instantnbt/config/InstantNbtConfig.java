@@ -27,6 +27,7 @@ public final class InstantNbtConfig {
 	public boolean ownershipStrict = true;
 	public boolean enforceAcquireRelease = true;
 	public boolean autoFreezeSnapshot = true;
+	public boolean trackItemStackNbt = false;
 
 	public boolean fastCodec = true;
 	public boolean legacyFallback = true;
@@ -63,6 +64,7 @@ public final class InstantNbtConfig {
 				forceLegacyForUnknown = true;
 				ownershipStrict = true;
 				sharedTagEnabled = false;
+				trackItemStackNbt = false;
 				break;
 			case AGGRESSIVE:
 				deltaSync = true;
@@ -71,6 +73,7 @@ public final class InstantNbtConfig {
 				legacyFallback = true;
 				sharedTagEnabled = true;
 				ownershipStrict = true;
+				trackItemStackNbt = true;
 				break;
 			case BALANCED:
 			default:
@@ -80,6 +83,7 @@ public final class InstantNbtConfig {
 				legacyFallback = true;
 				sharedTagEnabled = true;
 				ownershipStrict = true;
+				trackItemStackNbt = false;
 				break;
 		}
 	}
@@ -117,7 +121,8 @@ public final class InstantNbtConfig {
 			w.write("[ownership]\n");
 			w.write("strict = " + ownershipStrict + "\n");
 			w.write("enforceAcquireRelease = " + enforceAcquireRelease + "\n");
-			w.write("autoFreezeSnapshot = " + autoFreezeSnapshot + "\n\n");
+			w.write("autoFreezeSnapshot = " + autoFreezeSnapshot + "\n");
+			w.write("trackItemStackNbt = " + trackItemStackNbt + "\n\n");
 			w.write("[serializer]\n");
 			w.write("fastCodec = " + fastCodec + "\n");
 			w.write("legacyFallback = " + legacyFallback + "\n");
@@ -176,6 +181,7 @@ public final class InstantNbtConfig {
 		ownershipStrict = bool(values, "ownership.strict", ownershipStrict);
 		enforceAcquireRelease = bool(values, "ownership.enforceAcquireRelease", enforceAcquireRelease);
 		autoFreezeSnapshot = bool(values, "ownership.autoFreezeSnapshot", autoFreezeSnapshot);
+		trackItemStackNbt = bool(values, "ownership.trackItemStackNbt", trackItemStackNbt);
 
 		fastCodec = bool(values, "serializer.fastCodec", fastCodec);
 		legacyFallback = bool(values, "serializer.legacyFallback", legacyFallback);

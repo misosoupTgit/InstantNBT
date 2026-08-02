@@ -155,6 +155,50 @@ public final class NetworkRuntime {
 		}
 	}
 
+	public void sendToPlayer(net.minecraft.server.level.ServerPlayer player, OwnedTag previous, OwnedTag current) throws IOException {
+		if (player == null || current == null) {
+			return;
+		}
+		byte[] packet;
+		boolean full;
+		long baseGen;
+		if (previous == null) {
+			packet = buildFull(current);
+			full = true;
+			baseGen = -1L;
+		} else {
+			packet = buildDelta(previous, current);
+			full = false;
+			baseGen = previous.generation();
+			if (packet.length == 0) {
+				return;
+			}
+		}
+		SyncPackets.sendToPlayer(player, packet, baseGen, full);
+	}
+
+	public void sendToServer(OwnedTag previous, OwnedTag current) throws IOException {
+		if (current == null) {
+			return;
+		}
+		byte[] packet;
+		boolean full;
+		long baseGen;
+		if (previous == null) {
+			packet = buildFull(current);
+			full = true;
+			baseGen = -1L;
+		} else {
+			packet = buildDelta(previous, current);
+			full = false;
+			baseGen = previous.generation();
+			if (packet.length == 0) {
+				return;
+			}
+		}
+		SyncPackets.sendToServer(packet, baseGen, full);
+	}
+
 	public synchronized int flushBatch() {
 		int count = pending.size();
 		pending.clear();

@@ -2,6 +2,11 @@
 
 import net.darkhax.curseforgegradle.TaskPublishCurseForge
 import net.darkhax.curseforgegradle.Constants as CFConstants
+import org.gradle.api.tasks.JavaExec
+import org.gradle.kotlin.dsl.the
+import org.gradle.kotlin.dsl.register
+import org.gradle.kotlin.dsl.get
+import org.gradle.kotlin.dsl.named
 
 plugins {
 	alias(libs.plugins.stonecutter)
@@ -49,6 +54,16 @@ tasks.register("buildAndCollectAll") {
 	group = "build"
 	description = "Build all Stonecutter versions and collect jars into build/dist"
 	dependsOn(stonecutter.tasks.named("buildAndCollect") { true })
+}
+
+tasks.register<JavaExec>("runTierAMicroBenchmark") {
+	group = "verification"
+	description = "Run InstantNBT headless micro-benchmarks on Tier A (1.20.1-forge)"
+	val forge = project(":1.20.1-forge")
+	dependsOn(forge.tasks.named("classes"))
+	classpath = forge.the<org.gradle.api.tasks.SourceSetContainer>()["main"].runtimeClasspath
+	mainClass.set("com.github.misosouptgit.instantnbt.benchmark.MicroBenchmarkMain")
+	workingDir = rootDir
 }
 
 // --- CurseForge bulk upload (CurseForgeGradle; requires JVM 25+) ---

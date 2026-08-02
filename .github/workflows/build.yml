@@ -101,6 +101,47 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  benchmark:
+    name: Tier A micro-benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDKs
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Run micro-benchmark (1.20.1-forge)
+        env:
+          GRADLE_OPTS: >-
+            -Dorg.gradle.daemon=false
+            -Dorg.gradle.parallel=false
+            -Dorg.gradle.jvmargs=-Xmx4G
+            -Dfile.encoding=UTF-8
+        run: |
+          chmod +x gradlew
+          ./gradlew runTierAMicroBenchmark --stacktrace --no-daemon
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: micro-benchmark-1.20.1-forge
+          path: build/benchmark/micro-benchmark.json
+          if-no-files-found: warn
+          retention-days: 30
+
   release:
     name: GitHub Release
     needs: build

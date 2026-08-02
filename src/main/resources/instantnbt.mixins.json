@@ -10,7 +10,8 @@
   "mixins": [
     "MinecraftServerMixin",
     "CompoundTagMixin",
-    "ListTagMixin"
+    "ListTagMixin",
+    "ItemStackMixin"
   ],
   "client": []
 }
