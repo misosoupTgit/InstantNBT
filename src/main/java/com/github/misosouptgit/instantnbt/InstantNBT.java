@@ -148,6 +148,42 @@ public final class InstantNBT {
 		runtime().sharedTags().releaseIfOrphaned(tag);
 	}
 
+	public static net.minecraft.nbt.CompoundTag diff(Tag oldTag, Tag newTag) {
+		return com.github.misosouptgit.instantnbt.ownership.TagDiff.diff(oldTag, newTag);
+	}
+
+	public static net.minecraft.nbt.CompoundTag diff(OwnedTag oldTag, OwnedTag newTag) {
+		return diff(oldTag == null ? null : oldTag.payload(), newTag == null ? null : newTag.payload());
+	}
+
+	public static net.minecraft.nbt.CompoundTag merge(Tag base, Tag delta) {
+		return com.github.misosouptgit.instantnbt.ownership.TagDiff.merge(base, delta);
+	}
+
+	public static net.minecraft.nbt.CompoundTag merge(OwnedTag base, Tag delta) {
+		return merge(base == null ? null : base.payload(), delta);
+	}
+
+	public static String trace(OwnedTag tag) {
+		return com.github.misosouptgit.instantnbt.ownership.TagDiff.trace(tag);
+	}
+
+	public static String encodeSnbt(Tag tag) {
+		try {
+			return runtime().serializer().encodeSnbt(tag);
+		} catch (Exception ex) {
+			throw new IllegalStateException(ex);
+		}
+	}
+
+	public static Tag decodeSnbt(String snbt) {
+		try {
+			return runtime().serializer().decodeSnbt(snbt);
+		} catch (Exception ex) {
+			throw new IllegalStateException(ex);
+		}
+	}
+
 	private static OwnedTag ensureOwned(Tag tag) {
 		if (tag == null) {
 			throw new IllegalArgumentException("tag");

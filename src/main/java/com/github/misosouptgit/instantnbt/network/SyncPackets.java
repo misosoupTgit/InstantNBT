@@ -4,6 +4,8 @@ import com.github.misosouptgit.instantnbt.InstantNBT;
 import com.github.misosouptgit.instantnbt.ownership.OwnedTag;
 import com.github.misosouptgit.instantnbt.runtime.InstantNbtRuntime;
 import dev.architectury.networking.NetworkManager;
+import dev.architectury.utils.Env;
+import dev.architectury.utils.EnvExecutor;
 import io.netty.buffer.Unpooled;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -30,9 +32,25 @@ public final class SyncPackets {
 		NetworkManager.registerReceiver(NetworkManager.Side.C2S, SYNC_ID, SyncPackets::handleServer);
 		InstantNBT.LOGGER.info("Registered InstantNBT sync packets ({})", SYNC_ID);
 		//?} else {
-		/*InstantNBT.LOGGER.warn("InstantNBT Netty sync packets deferred on >=1.20.5 (payload API); DirectPass/Transport remain available");
+		/*registerModern();
 		*///?}
 	}
+
+	//? if >=1.20.5 {
+	/*private static void registerModern() {
+		var type = InstantNbtSyncPayload.TYPE;
+		var codec = InstantNbtSyncPayload.STREAM_CODEC;
+		NetworkManager.registerReceiver(NetworkManager.Side.C2S, type, codec, (payload, context) ->
+			context.queue(() -> applyIncoming(payload.data(), payload.baseGeneration(), payload.full(), context.getPlayer())));
+		EnvExecutor.runInEnv(Env.CLIENT, () -> () ->
+			NetworkManager.registerReceiver(NetworkManager.Side.S2C, type, codec, (payload, context) ->
+				context.queue(() -> applyIncoming(payload.data(), payload.baseGeneration(), payload.full(), context.getPlayer()))));
+		if (dev.architectury.platform.Platform.getEnvironment() != Env.CLIENT) {
+			NetworkManager.registerS2CPayloadType(type, codec);
+		}
+		InstantNBT.LOGGER.info("Registered InstantNBT modern sync payloads ({})", SYNC_ID);
+	}
+	*///?}
 
 	public static void sendToPlayer(ServerPlayer player, byte[] payload, long baseGeneration, boolean full) {
 		if (player == null || payload == null) {
@@ -44,7 +62,8 @@ public final class SyncPackets {
 		NetworkManager.sendToPlayer(player, SYNC_ID, buf);
 		InstantNbtRuntime.get().network().transport().offerPacket(payload);
 		//?} else {
-		/*InstantNbtRuntime.get().network().transport().offerPacket(payload);
+		/*NetworkManager.sendToPlayer(player, new InstantNbtSyncPayload(full, baseGeneration, payload));
+		InstantNbtRuntime.get().network().transport().offerPacket(payload);
 		*///?}
 	}
 
@@ -58,7 +77,8 @@ public final class SyncPackets {
 		NetworkManager.sendToServer(SYNC_ID, buf);
 		InstantNbtRuntime.get().network().transport().offerPacket(payload);
 		//?} else {
-		/*InstantNbtRuntime.get().network().transport().offerPacket(payload);
+		/*NetworkManager.sendToServer(new InstantNbtSyncPayload(full, baseGeneration, payload));
+		InstantNbtRuntime.get().network().transport().offerPacket(payload);
 		*///?}
 	}
 

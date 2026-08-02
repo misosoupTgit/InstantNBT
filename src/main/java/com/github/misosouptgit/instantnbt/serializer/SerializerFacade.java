@@ -39,6 +39,74 @@ public final class SerializerFacade {
 		return forceLegacy || !fastCodec ? CodecPath.LEGACY : CodecPath.FAST_BINARY;
 	}
 
+	public String encodeSnbt(Tag tag) throws IOException {
+		if (tag == null) {
+			throw new IllegalArgumentException("tag");
+		}
+		try {
+			guard.validateTag(tag);
+			encodeCount.incrementAndGet();
+			return SnbtCodec.encode(VersionAdapter.adaptForEncode(tag));
+		} catch (IllegalArgumentException ex) {
+			guardRejections.incrementAndGet();
+			noteGuardFailure(ex);
+			throw new IOException(ex.getMessage(), ex);
+		}
+	}
+
+	public Tag decodeSnbt(String snbt) throws IOException {
+		decodeCount.incrementAndGet();
+		try {
+			Tag tag = SnbtCodec.decode(snbt);
+			guard.validateTag(tag);
+			consecutiveFailures.set(0);
+			return VersionAdapter.adaptAfterDecode(tag);
+		} catch (Exception ex) {
+			if (!legacyFallback) {
+				noteFailure(new IOException(ex));
+				throw new IOException(ex);
+			}
+			legacyRetries.incrementAndGet();
+			try {
+				Tag tag = SnbtCodec.decode(snbt);
+				guard.validateTag(tag);
+				consecutiveFailures.set(0);
+				return VersionAdapter.adaptAfterDecode(tag);
+			} catch (Exception legacy) {
+				noteFailure(new IOException(legacy));
+				throw new IOException(legacy);
+			}
+		}
+	}
+
+	/**
+	 * Large-tag chunked encode: splits compound top-level keys into consecutive binary frames.
+	 */
+	public byte[] encodeChunked(Tag tag, int maxChunkBytes) throws IOException {
+		if (!(tag instanceof net.minecraft.nbt.CompoundTag)) {
+			return encode(tag);
+		}
+		net.minecraft.nbt.CompoundTag compound = (net.minecraft.nbt.CompoundTag) tag;
+		java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+		try (java.io.DataOutputStream out = new java.io.DataOutputStream(bos)) {
+			out.writeInt(compound.size());
+			for (String key : compound.getAllKeys()) {
+				net.minecraft.nbt.CompoundTag part = new net.minecraft.nbt.CompoundTag();
+				part.put(key, compound.get(key));
+				byte[] body = encode(part);
+				if (maxChunkBytes > 0 && body.length > maxChunkBytes) {
+					guard.validateEncodedSize(body);
+				}
+				out.writeUTF(key);
+				out.writeInt(body.length);
+				out.write(body);
+			}
+		}
+		byte[] data = bos.toByteArray();
+		guard.validateEncodedSize(data);
+		return data;
+	}
+
 	public byte[] encode(OwnedTag owned) throws IOException {
 		return encode(owned == null ? null : owned.payload());
 	}

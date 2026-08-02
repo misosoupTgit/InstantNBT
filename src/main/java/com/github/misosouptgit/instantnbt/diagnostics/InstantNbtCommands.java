@@ -33,6 +33,11 @@ public final class InstantNbtCommands {
 			}
 			return 1;
 		}));
+		root.then(Commands.literal("trace").executes(ctx -> {
+			reply(ctx.getSource(), "usage: hold an API-tracked tag context; see InstantNBT.trace(OwnedTag)");
+			reply(ctx.getSource(), "tracked=" + InstantNbtRuntime.get().tracker().size());
+			return 1;
+		}));
 		root.then(Commands.literal("export").executes(ctx -> {
 			try {
 				java.nio.file.Path path = InstantNbtRuntime.get().diagnostics().exportJson();
