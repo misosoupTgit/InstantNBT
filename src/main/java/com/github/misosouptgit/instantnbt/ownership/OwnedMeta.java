@@ -74,7 +74,7 @@ public final class OwnedMeta {
 		this.dirty = dirty;
 	}
 
-	void clearDirty() {
+	public void clearDirty() {
 		this.dirty = false;
 	}
 }

@@ -1,0 +1,224 @@
+package com.github.misosouptgit.instantnbt.config;
+
+import com.github.misosouptgit.instantnbt.InstantNBT;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * InstantNBT config loader (Project Plan 15). Safe defaults; simple TOML-ish subset.
+ */
+public final class InstantNbtConfig {
+	public boolean runtimeEnabled = true;
+	public RuntimePreset mode = RuntimePreset.BALANCED;
+
+	public boolean arenaEnabled = true;
+	public boolean poolEnabled = true;
+	public boolean sharedTagEnabled = true;
+	public boolean gcMonitorEnabled = true;
+
+	public boolean ownershipStrict = true;
+	public boolean enforceAcquireRelease = true;
+	public boolean autoFreezeSnapshot = true;
+
+	public boolean fastCodec = true;
+	public boolean legacyFallback = true;
+	public boolean lazyDeserialize = false;
+	public boolean unsafeIO = false;
+
+	public boolean deltaSync = true;
+	public boolean snapshotSync = true;
+	public boolean packetBatching = true;
+	public boolean integratedDirectPass = true;
+
+	public boolean autoDetectMods = true;
+	public boolean forceLegacyForUnknown = true;
+
+	public boolean diagnosticsCommand = true;
+	public boolean diagnosticsOverlay = true;
+	public boolean exportJson = true;
+
+	public boolean killSwitch = false;
+	public boolean killSwitchPersistDisable = false;
+
+	public static InstantNbtConfig defaults() {
+		return new InstantNbtConfig();
+	}
+
+	public void applyPreset(RuntimePreset preset) {
+		this.mode = preset == null ? RuntimePreset.BALANCED : preset;
+		switch (this.mode) {
+			case SAFE:
+				deltaSync = false;
+				integratedDirectPass = false;
+				fastCodec = false;
+				legacyFallback = true;
+				forceLegacyForUnknown = true;
+				ownershipStrict = true;
+				sharedTagEnabled = false;
+				break;
+			case AGGRESSIVE:
+				deltaSync = true;
+				integratedDirectPass = true;
+				fastCodec = true;
+				legacyFallback = true;
+				sharedTagEnabled = true;
+				ownershipStrict = true;
+				break;
+			case BALANCED:
+			default:
+				deltaSync = true;
+				integratedDirectPass = true;
+				fastCodec = true;
+				legacyFallback = true;
+				sharedTagEnabled = true;
+				ownershipStrict = true;
+				break;
+		}
+	}
+
+	public static InstantNbtConfig load(Path path) {
+		InstantNbtConfig config = defaults();
+		if (path == null) {
+			return config;
+		}
+		try {
+			if (!Files.exists(path)) {
+				Files.createDirectories(path.getParent());
+				config.write(path);
+				return config;
+			}
+			config.read(path);
+		} catch (IOException ex) {
+			InstantNBT.LOGGER.warn("Failed to load config {}; using defaults ({})", path, ex.toString());
+		}
+		return config;
+	}
+
+	public void write(Path path) throws IOException {
+		Files.createDirectories(path.getParent());
+		try (BufferedWriter w = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
+			w.write("# InstantNBT config — safe defaults. Restart may be required after changes.\n");
+			w.write("[runtime]\n");
+			w.write("enabled = " + runtimeEnabled + "\n");
+			w.write("mode = \"" + mode.name().toLowerCase(Locale.ROOT) + "\"\n\n");
+			w.write("[memory]\n");
+			w.write("arenaEnabled = " + arenaEnabled + "\n");
+			w.write("poolEnabled = " + poolEnabled + "\n");
+			w.write("sharedTagEnabled = " + sharedTagEnabled + "\n");
+			w.write("gcMonitorEnabled = " + gcMonitorEnabled + "\n\n");
+			w.write("[ownership]\n");
+			w.write("strict = " + ownershipStrict + "\n");
+			w.write("enforceAcquireRelease = " + enforceAcquireRelease + "\n");
+			w.write("autoFreezeSnapshot = " + autoFreezeSnapshot + "\n\n");
+			w.write("[serializer]\n");
+			w.write("fastCodec = " + fastCodec + "\n");
+			w.write("legacyFallback = " + legacyFallback + "\n");
+			w.write("lazyDeserialize = " + lazyDeserialize + "\n");
+			w.write("unsafeIO = " + unsafeIO + "\n\n");
+			w.write("[network]\n");
+			w.write("deltaSync = " + deltaSync + "\n");
+			w.write("snapshotSync = " + snapshotSync + "\n");
+			w.write("packetBatching = " + packetBatching + "\n");
+			w.write("integratedDirectPass = " + integratedDirectPass + "\n\n");
+			w.write("[compat]\n");
+			w.write("autoDetectMods = " + autoDetectMods + "\n");
+			w.write("forceLegacyForUnknown = " + forceLegacyForUnknown + "\n\n");
+			w.write("[diagnostics]\n");
+			w.write("commandEnabled = " + diagnosticsCommand + "\n");
+			w.write("overlayEnabled = " + diagnosticsOverlay + "\n");
+			w.write("exportJson = " + exportJson + "\n\n");
+			w.write("[safety]\n");
+			w.write("killSwitch = " + killSwitch + "\n");
+			w.write("killSwitchPersistDisable = " + killSwitchPersistDisable + "\n");
+		}
+	}
+
+	private void read(Path path) throws IOException {
+		Map<String, String> values = new LinkedHashMap<>();
+		String section = "";
+		try (BufferedReader r = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+			String line;
+			while ((line = r.readLine()) != null) {
+				line = line.trim();
+				if (line.isEmpty() || line.startsWith("#") || line.startsWith("//")) {
+					continue;
+				}
+				if (line.startsWith("[") && line.endsWith("]")) {
+					section = line.substring(1, line.length() - 1).trim();
+					continue;
+				}
+				int eq = line.indexOf('=');
+				if (eq <= 0) {
+					continue;
+				}
+				String key = line.substring(0, eq).trim();
+				String value = stripQuotes(line.substring(eq + 1).trim());
+				values.put(section + "." + key, value);
+			}
+		}
+		runtimeEnabled = bool(values, "runtime.enabled", runtimeEnabled);
+		mode = RuntimePreset.parse(str(values, "runtime.mode", mode.name()));
+		applyPreset(mode);
+
+		arenaEnabled = bool(values, "memory.arenaEnabled", arenaEnabled);
+		poolEnabled = bool(values, "memory.poolEnabled", poolEnabled);
+		sharedTagEnabled = bool(values, "memory.sharedTagEnabled", sharedTagEnabled);
+		gcMonitorEnabled = bool(values, "memory.gcMonitorEnabled", gcMonitorEnabled);
+
+		ownershipStrict = bool(values, "ownership.strict", ownershipStrict);
+		enforceAcquireRelease = bool(values, "ownership.enforceAcquireRelease", enforceAcquireRelease);
+		autoFreezeSnapshot = bool(values, "ownership.autoFreezeSnapshot", autoFreezeSnapshot);
+
+		fastCodec = bool(values, "serializer.fastCodec", fastCodec);
+		legacyFallback = bool(values, "serializer.legacyFallback", legacyFallback);
+		lazyDeserialize = bool(values, "serializer.lazyDeserialize", lazyDeserialize);
+		unsafeIO = bool(values, "serializer.unsafeIO", unsafeIO);
+
+		deltaSync = bool(values, "network.deltaSync", deltaSync);
+		snapshotSync = bool(values, "network.snapshotSync", snapshotSync);
+		packetBatching = bool(values, "network.packetBatching", packetBatching);
+		integratedDirectPass = bool(values, "network.integratedDirectPass", integratedDirectPass);
+
+		autoDetectMods = bool(values, "compat.autoDetectMods", autoDetectMods);
+		forceLegacyForUnknown = bool(values, "compat.forceLegacyForUnknown", forceLegacyForUnknown);
+
+		diagnosticsCommand = bool(values, "diagnostics.commandEnabled", diagnosticsCommand);
+		diagnosticsOverlay = bool(values, "diagnostics.overlayEnabled", diagnosticsOverlay);
+		exportJson = bool(values, "diagnostics.exportJson", exportJson);
+
+		killSwitch = bool(values, "safety.killSwitch", killSwitch);
+		killSwitchPersistDisable = bool(values, "safety.killSwitchPersistDisable", killSwitchPersistDisable);
+	}
+
+	private static String stripQuotes(String value) {
+		if (value.length() >= 2) {
+			char a = value.charAt(0);
+			char b = value.charAt(value.length() - 1);
+			if ((a == '"' && b == '"') || (a == '\'' && b == '\'')) {
+				return value.substring(1, value.length() - 1);
+			}
+		}
+		return value;
+	}
+
+	private static boolean bool(Map<String, String> map, String key, boolean fallback) {
+		String v = map.get(key);
+		if (v == null) {
+			return fallback;
+		}
+		return Boolean.parseBoolean(v);
+	}
+
+	private static String str(Map<String, String> map, String key, String fallback) {
+		String v = map.get(key);
+		return v == null ? fallback : v;
+	}
+}

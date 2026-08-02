@@ -7,8 +7,13 @@ import net.minecraft.nbt.Tag;
  * Meta is created only on share / freeze / acquire / ensureWritable promotion paths.
  */
 public final class OwnedTag {
+	private static volatile CowStrategy defaultStrategy = CowStrategy.SHALLOW_FIRST;
+	private static volatile int deepThreshold = CowEngine.DEFAULT_DEEP_THRESHOLD;
+	private static volatile boolean cowEnabled = true;
+
 	private Tag payload;
 	private OwnedMeta meta;
+	private int pinCount;
 
 	private OwnedTag(Tag payload, OwnedMeta meta) {
 		if (payload == null) {
@@ -16,6 +21,14 @@ public final class OwnedTag {
 		}
 		this.payload = payload;
 		this.meta = meta;
+	}
+
+	public static void configureCow(boolean enabled, CowStrategy strategy, int threshold) {
+		cowEnabled = enabled;
+		if (strategy != null) {
+			defaultStrategy = strategy;
+		}
+		deepThreshold = Math.max(1, threshold);
 	}
 
 	public static OwnedTag of(Tag payload) {
@@ -66,10 +79,37 @@ public final class OwnedTag {
 		if (meta == null) {
 			return;
 		}
+		if (pinCount > 0) {
+			throw new IllegalStateException("cannot release pinned tag");
+		}
 		meta.addRefCount(-1);
 		if (meta.refCount() == 0) {
 			meta.setState(OwnershipState.DETACHED);
 		}
+	}
+
+	public void pin() {
+		promote();
+		pinCount++;
+	}
+
+	public void unpin() {
+		if (pinCount <= 0) {
+			throw new IllegalStateException("tag is not pinned");
+		}
+		pinCount--;
+	}
+
+	public boolean isPinned() {
+		return pinCount > 0;
+	}
+
+	public boolean isShared() {
+		return meta != null && meta.state() == OwnershipState.SHARED;
+	}
+
+	public boolean isFrozen() {
+		return meta != null && (meta.state() == OwnershipState.FROZEN || meta.immutable());
 	}
 
 	public void share() {
@@ -103,20 +143,28 @@ public final class OwnedTag {
 			throw new IllegalStateException("cannot write DETACHED tag");
 		}
 		if (meta.state() == OwnershipState.FROZEN || meta.immutable()) {
-			throw new IllegalStateException("cannot write FROZEN/immutable tag; copy first");
+			if (!cowEnabled) {
+				throw new IllegalStateException("cannot write FROZEN/immutable tag; copy first");
+			}
+			return split().payload;
 		}
 		if (meta.state() == OwnershipState.SHARED) {
+			if (!cowEnabled) {
+				throw new IllegalStateException("cannot write SHARED tag while CoW disabled");
+			}
 			split();
 		}
 		return payload;
 	}
 
 	/**
-	 * Shallow-first CoW split: copy payload, move this instance to UNIQUE.
+	 * CoW split using configured shallow/adaptive strategy (Project Plan 7).
 	 */
 	public OwnedTag split() {
 		OwnedMeta m = promote();
-		Tag copy = payload.copy();
+		Tag copy = cowEnabled
+			? CowEngine.splitPayload(payload, defaultStrategy, deepThreshold)
+			: payload.copy();
 		payload = copy;
 		m.setState(OwnershipState.UNIQUE);
 		m.setImmutable(false);

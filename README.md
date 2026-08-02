@@ -6,7 +6,7 @@ Maintained by MisoPy.
 
 ## Status
 
-Phase 0 scaffold: multi-loader / multi-version build matrix via Architectury + StoneCutter. Runtime Core lands in later phases — see [InstantNBT_ProjectPlan.md](InstantNBT_ProjectPlan.md).
+Phase 2–3 in progress: Ownership / Memory / Serializer / Network skeletons with optional Public API and safe-by-default config (`config/instantnbt-common.toml`).
 
 ## Requirements
 

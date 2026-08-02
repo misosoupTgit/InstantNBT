@@ -7,6 +7,8 @@
   "injectors": {
     "defaultRequire": 1
   },
-  "mixins": [],
+  "mixins": [
+    "MinecraftServerMixin"
+  ],
   "client": []
 }

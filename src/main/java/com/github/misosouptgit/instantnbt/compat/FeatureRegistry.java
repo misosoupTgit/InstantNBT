@@ -5,13 +5,16 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * Minimal Feature Registry stub (Project Plan 13.2). Full negotiation lands later.
+ * Feature Registry (Project Plan 13.2).
  */
 public final class FeatureRegistry {
 	public static final String FEAT_OWNERSHIP = "ownership";
 	public static final String FEAT_MEMORY_POOL = "memory.pool";
 	public static final String FEAT_COW = "cow";
+	public static final String FEAT_SHARED_TAG = "memory.shared_tag";
+	public static final String FEAT_FAST_CODEC = "serializer.fast";
 	public static final String FEAT_DELTA_SYNC = "network.delta";
+	public static final String FEAT_SNAPSHOT_SYNC = "network.snapshot";
 	public static final String FEAT_DIRECT_PASS = "network.direct_pass";
 
 	private final Set<String> enabled = new LinkedHashSet<>();
@@ -22,7 +25,11 @@ public final class FeatureRegistry {
 		enabled.add(FEAT_OWNERSHIP);
 		enabled.add(FEAT_MEMORY_POOL);
 		enabled.add(FEAT_COW);
-		// network features stay off until Phase 3 wiring
+		enabled.add(FEAT_SHARED_TAG);
+		enabled.add(FEAT_FAST_CODEC);
+		enabled.add(FEAT_DELTA_SYNC);
+		enabled.add(FEAT_SNAPSHOT_SYNC);
+		enabled.add(FEAT_DIRECT_PASS);
 		scanned = true;
 	}
 
