@@ -31,12 +31,13 @@ public final class EntityNbtHooks {
 				owned = OwnedTag.of(tag);
 				runtime.tracker().track(owned);
 			}
-			if (saved) {
-				if (runtime.config().autoFreezeSnapshot && owned.hasMeta() && !owned.isFrozen()) {
-					owned.markDirty();
-				} else {
-					TagWriteHooks.onMutate(tag);
+			if (saved && runtime.config().autoFreezeSnapshot) {
+				// Save boundary = natural immutable snapshot for subsequent cheap CoW copies.
+				if (!owned.isFrozen()) {
+					owned.freeze();
 				}
+			} else if (saved) {
+				TagWriteHooks.onMutate(tag);
 			}
 		} catch (Throwable ignored) {
 		}

@@ -29,6 +29,7 @@ public final class InstantNbtConfig {
 	public boolean autoFreezeSnapshot = true;
 	public boolean trackItemStackNbt = false;
 	public boolean trackChunkNbt = true;
+	public boolean copyCowEnabled = true;
 	public int chunkEncodeThresholdBytes = 64 * 1024;
 
 	public boolean fastCodec = true;
@@ -71,6 +72,7 @@ public final class InstantNbtConfig {
 				sharedTagEnabled = false;
 				trackItemStackNbt = false;
 				trackChunkNbt = false;
+				copyCowEnabled = false;
 				lazyDeserialize = false;
 				unsafeIO = false;
 				break;
@@ -83,11 +85,12 @@ public final class InstantNbtConfig {
 				ownershipStrict = true;
 				trackItemStackNbt = true;
 				trackChunkNbt = true;
+				copyCowEnabled = true;
 				lazyDeserialize = false;
 				chunkEncodeThresholdBytes = 32 * 1024;
 				forceLegacyForUnknown = false;
 				unknownModPolicy = "soft";
-				unsafeIO = false; // still opt-in via config even in aggressive
+				unsafeIO = false;
 				break;
 			case BALANCED:
 			default:
@@ -99,6 +102,7 @@ public final class InstantNbtConfig {
 				ownershipStrict = true;
 				trackItemStackNbt = false;
 				trackChunkNbt = true;
+				copyCowEnabled = true;
 				lazyDeserialize = false;
 				chunkEncodeThresholdBytes = 64 * 1024;
 				forceLegacyForUnknown = false;
@@ -143,7 +147,8 @@ public final class InstantNbtConfig {
 			w.write("enforceAcquireRelease = " + enforceAcquireRelease + "\n");
 			w.write("autoFreezeSnapshot = " + autoFreezeSnapshot + "\n");
 			w.write("trackItemStackNbt = " + trackItemStackNbt + "\n");
-			w.write("trackChunkNbt = " + trackChunkNbt + "\n\n");
+			w.write("trackChunkNbt = " + trackChunkNbt + "\n");
+			w.write("copyCowEnabled = " + copyCowEnabled + "\n\n");
 			w.write("[serializer]\n");
 			w.write("fastCodec = " + fastCodec + "\n");
 			w.write("legacyFallback = " + legacyFallback + "\n");
@@ -206,6 +211,7 @@ public final class InstantNbtConfig {
 		autoFreezeSnapshot = bool(values, "ownership.autoFreezeSnapshot", autoFreezeSnapshot);
 		trackItemStackNbt = bool(values, "ownership.trackItemStackNbt", trackItemStackNbt);
 		trackChunkNbt = bool(values, "ownership.trackChunkNbt", trackChunkNbt);
+		copyCowEnabled = bool(values, "ownership.copyCowEnabled", copyCowEnabled);
 
 		fastCodec = bool(values, "serializer.fastCodec", fastCodec);
 		legacyFallback = bool(values, "serializer.legacyFallback", legacyFallback);

@@ -30,13 +30,18 @@ public final class ClientOverlay {
 				runtime.killSwitch().isEngaged()
 			));
 			texts.add(String.format(
-				"[InstantNBT] pool=%.0f%% shared=%d tracked=%d netF/D/S=%d/%d/%d",
+				"[InstantNBT] pool=%.0f%% shared=%d tracked=%d netF/D=%d/%d",
 				runtime.memory().pool().hitRate() * 100.0,
 				runtime.sharedTags().size(),
 				runtime.tracker().size(),
 				runtime.network().fullSyncs(),
-				runtime.network().deltaSyncs(),
-				runtime.network().snapshotSyncs()
+				runtime.network().deltaSyncs()
+			));
+			texts.add(String.format(
+				"[InstantNBT] cow hit/miss=%d/%d saved~%dB (NBT copy path; not render FPS)",
+				com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.hits(),
+				com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.misses(),
+				com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.estimatedBytesSaved()
 			));
 		});
 		//?}

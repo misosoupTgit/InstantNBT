@@ -25,8 +25,16 @@ public abstract class ListTagMixin {
 	private void instantnbt$remove(int index, CallbackInfoReturnable<Tag> cir) {
 		TagWriteHooks.onMutate((Tag) (Object) this);
 	}
+
+	@Inject(method = "copy()Lnet/minecraft/nbt/ListTag;", at = @At("HEAD"), cancellable = true, require = 0)
+	private void instantnbt$copy(CallbackInfoReturnable<ListTag> cir) {
+		ListTag accelerated = com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.tryCopyList((ListTag) (Object) this);
+		if (accelerated != null) {
+			cir.setReturnValue(accelerated);
+		}
+	}
 	//?} else {
-	/*@Inject(method = "setTag", at = @At("HEAD"))
+	/*@Inject(method = "setTag", at = @At("HEAD"), require = 0)
 	private void instantnbt$setTag(int index, Tag tag, org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
 		TagWriteHooks.onMutate((Tag) (Object) this);
 	}

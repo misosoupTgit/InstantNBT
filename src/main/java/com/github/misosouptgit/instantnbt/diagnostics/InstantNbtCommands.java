@@ -25,6 +25,15 @@ public final class InstantNbtCommands {
 		root.then(Commands.literal("network").executes(ctx -> dump(ctx.getSource(), InstantNbtRuntime.get().diagnostics().networkLines())));
 		root.then(Commands.literal("compat").executes(ctx -> dump(ctx.getSource(), InstantNbtRuntime.get().diagnostics().compatLines())));
 		root.then(Commands.literal("profiler").executes(ctx -> dump(ctx.getSource(), InstantNbtRuntime.get().diagnostics().profilerLines())));
+		root.then(Commands.literal("cow").executes(ctx -> {
+			reply(ctx.getSource(), "copyCow hits=" + com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.hits()
+				+ " misses=" + com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.misses()
+				+ " estSavedBytes=" + com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.estimatedBytesSaved());
+			reply(ctx.getSource(), "tracked=" + InstantNbtRuntime.get().tracker().size()
+				+ " copyCowEnabled=" + InstantNbtRuntime.get().config().copyCowEnabled);
+			reply(ctx.getSource(), "Note: InstantNBT optimizes NBT copy/sync/GC pressure — not render FPS.");
+			return 1;
+		}));
 		root.then(Commands.literal("benchmark").executes(ctx -> {
 			List<com.github.misosouptgit.instantnbt.benchmark.MicroBenchmark.Result> results =
 				com.github.misosouptgit.instantnbt.benchmark.MicroBenchmark.runAll(InstantNbtRuntime.get());

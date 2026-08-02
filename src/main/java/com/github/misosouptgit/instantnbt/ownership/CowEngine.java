@@ -75,6 +75,43 @@ public final class CowEngine {
 		return tag.copy();
 	}
 
+	/**
+	 * Structural shallow copy: new compound/list nodes, shared immutable leaf tags.
+	 * Nested compounds/lists are re-wrapped so write hooks can CoW-split safely.
+	 */
+	public static CompoundTag shallowStructureCopyCompound(CompoundTag src) {
+		CompoundTag dst = new CompoundTag();
+		for (String key : src.getAllKeys()) {
+			Tag child = src.get(key);
+			if (child == null) {
+				continue;
+			}
+			if (child instanceof CompoundTag) {
+				dst.put(key, shallowStructureCopyCompound((CompoundTag) child));
+			} else if (child instanceof ListTag) {
+				dst.put(key, shallowStructureCopyList((ListTag) child));
+			} else {
+				dst.put(key, child);
+			}
+		}
+		return dst;
+	}
+
+	public static ListTag shallowStructureCopyList(ListTag src) {
+		ListTag dst = new ListTag();
+		for (int i = 0; i < src.size(); i++) {
+			Tag child = src.get(i);
+			if (child instanceof CompoundTag) {
+				dst.add(shallowStructureCopyCompound((CompoundTag) child));
+			} else if (child instanceof ListTag) {
+				dst.add(shallowStructureCopyList((ListTag) child));
+			} else {
+				dst.add(child);
+			}
+		}
+		return dst;
+	}
+
 	public static int estimateSize(Tag tag) {
 		if (tag == null) {
 			return 0;

@@ -38,12 +38,12 @@ public final class ChunkNbtHooks {
 				owned = OwnedTag.of(tag);
 				runtime.tracker().track(owned);
 			}
-			if (saved) {
-				if (runtime.config().autoFreezeSnapshot && owned.hasMeta() && !owned.isFrozen()) {
-					owned.markDirty();
-				} else {
-					TagWriteHooks.onMutate(tag);
+			if (saved && runtime.config().autoFreezeSnapshot) {
+				if (!owned.isFrozen()) {
+					owned.freeze();
 				}
+			} else if (saved) {
+				TagWriteHooks.onMutate(tag);
 			}
 		} catch (Throwable ignored) {
 		}
