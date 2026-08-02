@@ -5,7 +5,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
 
 /**
- * SNBT encode/decode path (Project Plan 10.2).
+ * SNBT encode/decode with Fast Parser + vanilla fallback (Project Plan 10.2).
  */
 public final class SnbtCodec {
 	private SnbtCodec() {}
@@ -19,10 +19,18 @@ public final class SnbtCodec {
 			return new CompoundTag();
 		}
 		String trimmed = snbt.trim();
+		try {
+			return SnbtFastParser.parse(trimmed);
+		} catch (SnbtFastParser.SnbtParseException ignored) {
+			return decodeLegacy(trimmed);
+		}
+	}
+
+	public static Tag decodeLegacy(String snbt) throws Exception {
 		//? if >=1.21.6 {
-		/*return TagParser.parseCompoundFully(trimmed);
+		/*return TagParser.parseCompoundFully(snbt);
 		*///?} else {
-		return TagParser.parseTag(trimmed);
+		return TagParser.parseTag(snbt);
 		//?}
 	}
 

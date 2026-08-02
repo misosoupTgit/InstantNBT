@@ -25,5 +25,10 @@ public abstract class BlockEntityMixin {
 	private void instantnbt$saveAdditionalModern(CompoundTag tag, CallbackInfo ci) {
 		EntityNbtHooks.onSaved(tag);
 	}
+
+	@Inject(method = "loadAdditional", at = @At("HEAD"))
+	private void instantnbt$loadAdditionalModern(CompoundTag tag, CallbackInfo ci) {
+		EntityNbtHooks.onLoaded(tag);
+	}
 	*///?}
 }

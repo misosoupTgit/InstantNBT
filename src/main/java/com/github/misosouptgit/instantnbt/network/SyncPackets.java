@@ -110,6 +110,7 @@ public final class SyncPackets {
 			}
 			OwnedTag applied = runtime.network().apply(payload, full ? -1L : baseGeneration);
 			runtime.tracker().track(applied);
+			runtime.network().rememberApplied(player, applied);
 			runtime.network().transport().offerPacket(payload);
 			InstantNBT.LOGGER.debug(
 				"Applied InstantNBT {} packet ({} bytes, gen={}, player={})",
@@ -118,9 +119,12 @@ public final class SyncPackets {
 				baseGeneration,
 				player == null ? "?" : player.getScoreboardName()
 			);
+		} catch (ResyncRequiredException ex) {
+			InstantNBT.LOGGER.warn("InstantNBT delta apply failed; requesting full resync: {}", ex.toString());
+			InstantNbtRuntime.get().network().requestFullResync(player);
 		} catch (Exception ex) {
 			InstantNBT.LOGGER.warn("Failed to apply InstantNBT sync packet: {}", ex.toString());
-			InstantNbtRuntime.get().network().shrinkBatchWindow();
+			InstantNbtRuntime.get().network().requestFullResync(player);
 		}
 	}
 

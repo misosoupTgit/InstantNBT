@@ -6,6 +6,7 @@ import com.github.misosouptgit.instantnbt.ownership.OwnedTag;
 import com.github.misosouptgit.instantnbt.ownership.Owner;
 import com.github.misosouptgit.instantnbt.runtime.DegradedMode;
 import com.github.misosouptgit.instantnbt.runtime.InstantNbtRuntime;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 
 import java.io.IOException;
@@ -18,17 +19,28 @@ public final class SerializerFacade {
 	private volatile boolean fastCodec = true;
 	private volatile boolean legacyFallback = true;
 	private volatile boolean forceLegacy;
+	private volatile boolean lazyDeserialize;
+	private volatile int chunkEncodeThreshold = 64 * 1024;
 	private volatile ValidationGuard guard = ValidationGuard.defaults();
 	private final AtomicInteger consecutiveFailures = new AtomicInteger();
 	private final AtomicInteger encodeCount = new AtomicInteger();
 	private final AtomicInteger decodeCount = new AtomicInteger();
 	private final AtomicInteger legacyRetries = new AtomicInteger();
 	private final AtomicInteger guardRejections = new AtomicInteger();
+	private final AtomicInteger chunkEncodes = new AtomicInteger();
+	private final AtomicInteger lazyDecodes = new AtomicInteger();
+	private final AtomicInteger snbtFastHits = new AtomicInteger();
+	private final AtomicInteger snbtFallbacks = new AtomicInteger();
 
 	public void configure(boolean fastCodec, boolean legacyFallback, boolean forceLegacy) {
 		this.fastCodec = fastCodec;
 		this.legacyFallback = legacyFallback;
 		this.forceLegacy = forceLegacy;
+	}
+
+	public void configureLazy(boolean lazyDeserialize, int chunkEncodeThresholdBytes) {
+		this.lazyDeserialize = lazyDeserialize;
+		this.chunkEncodeThreshold = Math.max(0, chunkEncodeThresholdBytes);
 	}
 
 	public void setGuard(ValidationGuard guard) {
@@ -57,18 +69,20 @@ public final class SerializerFacade {
 	public Tag decodeSnbt(String snbt) throws IOException {
 		decodeCount.incrementAndGet();
 		try {
-			Tag tag = SnbtCodec.decode(snbt);
+			Tag tag = SnbtFastParser.parse(snbt == null ? "" : snbt.trim());
+			snbtFastHits.incrementAndGet();
 			guard.validateTag(tag);
 			consecutiveFailures.set(0);
 			return VersionAdapter.adaptAfterDecode(tag);
-		} catch (Exception ex) {
+		} catch (Exception fastFail) {
 			if (!legacyFallback) {
-				noteFailure(new IOException(ex));
-				throw new IOException(ex);
+				noteFailure(new IOException(fastFail));
+				throw new IOException(fastFail);
 			}
+			snbtFallbacks.incrementAndGet();
 			legacyRetries.incrementAndGet();
 			try {
-				Tag tag = SnbtCodec.decode(snbt);
+				Tag tag = SnbtCodec.decodeLegacy(snbt == null ? "" : snbt.trim());
 				guard.validateTag(tag);
 				consecutiveFailures.set(0);
 				return VersionAdapter.adaptAfterDecode(tag);
@@ -79,32 +93,26 @@ public final class SerializerFacade {
 		}
 	}
 
-	/**
-	 * Large-tag chunked encode: splits compound top-level keys into consecutive binary frames.
-	 */
 	public byte[] encodeChunked(Tag tag, int maxChunkBytes) throws IOException {
-		if (!(tag instanceof net.minecraft.nbt.CompoundTag)) {
+		if (!(tag instanceof CompoundTag)) {
 			return encode(tag);
 		}
-		net.minecraft.nbt.CompoundTag compound = (net.minecraft.nbt.CompoundTag) tag;
-		java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-		try (java.io.DataOutputStream out = new java.io.DataOutputStream(bos)) {
-			out.writeInt(compound.size());
-			for (String key : compound.getAllKeys()) {
-				net.minecraft.nbt.CompoundTag part = new net.minecraft.nbt.CompoundTag();
-				part.put(key, compound.get(key));
-				byte[] body = encode(part);
-				if (maxChunkBytes > 0 && body.length > maxChunkBytes) {
-					guard.validateEncodedSize(body);
-				}
-				out.writeUTF(key);
-				out.writeInt(body.length);
-				out.write(body);
-			}
+		guard.validateTag(tag);
+		byte[] data = ChunkedNbtCodec.encode((CompoundTag) VersionAdapter.adaptForEncode(tag));
+		if (maxChunkBytes > 0) {
+			guard.validateEncodedSize(data);
 		}
-		byte[] data = bos.toByteArray();
-		guard.validateEncodedSize(data);
+		chunkEncodes.incrementAndGet();
+		encodeCount.incrementAndGet();
 		return data;
+	}
+
+	public Tag decodeChunked(byte[] data) throws IOException {
+		guard.validateEncodedSize(data);
+		decodeCount.incrementAndGet();
+		CompoundTag tag = ChunkedNbtCodec.decode(data);
+		guard.validateTag(tag);
+		return VersionAdapter.adaptAfterDecode(tag);
 	}
 
 	public byte[] encode(OwnedTag owned) throws IOException {
@@ -127,6 +135,15 @@ public final class SerializerFacade {
 		try {
 			byte[] data = BinaryNbtCodec.encode(adapted);
 			guard.validateEncodedSize(data);
+			if (chunkEncodeThreshold > 0
+				&& data.length >= chunkEncodeThreshold
+				&& adapted instanceof CompoundTag
+				&& !forceLegacy) {
+				byte[] chunked = ChunkedNbtCodec.encode((CompoundTag) adapted);
+				guard.validateEncodedSize(chunked);
+				chunkEncodes.incrementAndGet();
+				return chunked;
+			}
 			return data;
 		} catch (IOException | IllegalArgumentException primary) {
 			if (primary instanceof IllegalArgumentException) {
@@ -149,6 +166,14 @@ public final class SerializerFacade {
 	}
 
 	public OwnedTag decodeOwned(byte[] data) throws IOException {
+		if (lazyDeserialize) {
+			guard.validateEncodedSize(data);
+			lazyDecodes.incrementAndGet();
+			decodeCount.incrementAndGet();
+			OwnedTag deferred = OwnedTag.deferred(data.clone());
+			deferred.promote(Owner.current(ModuleDomain.SERIALIZER));
+			return deferred;
+		}
 		Tag tag = decode(data);
 		return OwnedTag.owned(tag, Owner.current(ModuleDomain.SERIALIZER));
 	}
@@ -166,7 +191,12 @@ public final class SerializerFacade {
 		}
 		decodeCount.incrementAndGet();
 		try {
-			Tag tag = BinaryNbtCodec.decode(data);
+			Tag tag;
+			if (ChunkedNbtCodec.isChunked(data)) {
+				tag = ChunkedNbtCodec.decode(data);
+			} else {
+				tag = BinaryNbtCodec.decode(data);
+			}
 			guard.validateTag(tag);
 			consecutiveFailures.set(0);
 			return VersionAdapter.adaptAfterDecode(tag);
@@ -230,5 +260,21 @@ public final class SerializerFacade {
 
 	public int guardRejections() {
 		return guardRejections.get();
+	}
+
+	public int chunkEncodes() {
+		return chunkEncodes.get();
+	}
+
+	public int lazyDecodes() {
+		return lazyDecodes.get();
+	}
+
+	public int snbtFastHits() {
+		return snbtFastHits.get();
+	}
+
+	public int snbtFallbacks() {
+		return snbtFallbacks.get();
 	}
 }

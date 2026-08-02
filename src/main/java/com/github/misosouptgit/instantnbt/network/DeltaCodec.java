@@ -32,6 +32,18 @@ public final class DeltaCodec {
 		this.guard = guard == null ? ValidationGuard.defaults() : guard;
 	}
 
+	public static boolean isFullPacket(byte[] packet) {
+		return packet != null && packet.length > 6 && packet[5] == MODE_FULL && looksLikeMagic(packet);
+	}
+
+	public static boolean isDeltaPacket(byte[] packet) {
+		return packet != null && packet.length > 6 && packet[5] == MODE_DELTA && looksLikeMagic(packet);
+	}
+
+	private static boolean looksLikeMagic(byte[] packet) {
+		return packet[0] == MAGIC[0] && packet[1] == MAGIC[1] && packet[2] == MAGIC[2] && packet[3] == MAGIC[3];
+	}
+
 	public byte[] encodeFull(OwnedTag tag) throws IOException {
 		CompoundTag compound = asCompound(tag.payload());
 		guard.validateTag(compound);

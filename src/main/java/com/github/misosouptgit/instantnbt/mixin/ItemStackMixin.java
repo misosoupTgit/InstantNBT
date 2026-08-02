@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Tracks ItemStack NBT mutations on pre-DataComponent versions (Project Plan safe Mixin surface).
+ * Tracks ItemStack NBT mutations (pre-DataComponent + modern save surfaces).
  */
 @Mixin(ItemStack.class)
 public abstract class ItemStackMixin {
@@ -32,5 +32,15 @@ public abstract class ItemStackMixin {
 			ItemStackNbtHooks.onTagPresent(tag);
 		}
 	}
-	//?}
+	//?} else if <1.21.2 {
+	/*@Inject(method = "save(Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"))
+	private void instantnbt$save(CompoundTag tag, CallbackInfoReturnable<CompoundTag> cir) {
+		ItemStackNbtHooks.onTagPresent(cir.getReturnValue());
+	}
+	*///?} else {
+	/*@Inject(method = "save", at = @At("RETURN"))
+	private void instantnbt$saveModern(CallbackInfoReturnable<CompoundTag> cir) {
+		ItemStackNbtHooks.onTagPresent(cir.getReturnValue());
+	}
+	*///?}
 }

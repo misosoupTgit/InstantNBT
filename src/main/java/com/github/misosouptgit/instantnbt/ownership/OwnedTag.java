@@ -14,6 +14,7 @@ public final class OwnedTag {
 	private Tag payload;
 	private OwnedMeta meta;
 	private int pinCount;
+	private byte[] deferredBytes;
 
 	private OwnedTag(Tag payload, OwnedMeta meta) {
 		if (payload == null) {
@@ -21,6 +22,43 @@ public final class OwnedTag {
 		}
 		this.payload = payload;
 		this.meta = meta;
+	}
+
+	/**
+	 * Lazy-decode holder: bytes materialize on first {@link #payload()} access (Project Plan 10.4).
+	 */
+	public static OwnedTag deferred(byte[] encoded) {
+		if (encoded == null) {
+			throw new IllegalArgumentException("encoded");
+		}
+		OwnedTag tag = new OwnedTag(new net.minecraft.nbt.CompoundTag(), null);
+		tag.deferredBytes = encoded;
+		return tag;
+	}
+
+	public boolean isDeferred() {
+		return deferredBytes != null;
+	}
+
+	private void materializeIfNeeded() {
+		if (deferredBytes == null) {
+			return;
+		}
+		synchronized (this) {
+			if (deferredBytes == null) {
+				return;
+			}
+			try {
+				if (com.github.misosouptgit.instantnbt.serializer.ChunkedNbtCodec.isChunked(deferredBytes)) {
+					payload = com.github.misosouptgit.instantnbt.serializer.ChunkedNbtCodec.decode(deferredBytes);
+				} else {
+					payload = com.github.misosouptgit.instantnbt.serializer.BinaryNbtCodec.decode(deferredBytes);
+				}
+			} catch (Exception ex) {
+				throw new IllegalStateException("lazy NBT materialize failed", ex);
+			}
+			deferredBytes = null;
+		}
 	}
 
 	public static void configureCow(boolean enabled, CowStrategy strategy, int threshold) {
@@ -40,6 +78,7 @@ public final class OwnedTag {
 	}
 
 	public Tag payload() {
+		materializeIfNeeded();
 		return payload;
 	}
 
@@ -136,6 +175,7 @@ public final class OwnedTag {
 	 * Ensure the payload is writable. SHARED / immutable triggers CoW split (Project Plan 6.3 / 7.2).
 	 */
 	public Tag ensureWritable() {
+		materializeIfNeeded();
 		if (meta == null) {
 			return payload;
 		}
@@ -161,6 +201,7 @@ public final class OwnedTag {
 	 * CoW split using configured shallow/adaptive strategy (Project Plan 7).
 	 */
 	public OwnedTag split() {
+		materializeIfNeeded();
 		OwnedMeta m = promote();
 		Tag copy = cowEnabled
 			? CowEngine.splitPayload(payload, defaultStrategy, deepThreshold)
@@ -177,6 +218,7 @@ public final class OwnedTag {
 	 * Produce a UNIQUE writable copy from a FROZEN (or any) tag.
 	 */
 	public OwnedTag copyUnique(Owner owner) {
+		materializeIfNeeded();
 		OwnedTag copy = owned(payload.copy(), owner == null ? Owner.current(ModuleDomain.RUNTIME) : owner);
 		copy.meta.setState(OwnershipState.UNIQUE);
 		copy.meta.setImmutable(false);

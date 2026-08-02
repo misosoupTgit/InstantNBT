@@ -1,13 +1,19 @@
 package com.github.misosouptgit.instantnbt.network;
 
+import com.github.misosouptgit.instantnbt.InstantNBT;
 import com.github.misosouptgit.instantnbt.ownership.OwnedTag;
 import com.github.misosouptgit.instantnbt.serializer.SerializerFacade;
 import com.github.misosouptgit.instantnbt.serializer.ValidationGuard;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -25,11 +31,14 @@ public final class NetworkRuntime {
 	private volatile int batchWindow = 16;
 
 	private final List<OwnedTag> pending = new ArrayList<>();
+	private final Map<UUID, OwnedTag> lastSentByPlayer = new ConcurrentHashMap<>();
+	private final Map<UUID, OwnedTag> lastAppliedByPlayer = new ConcurrentHashMap<>();
 	private final AtomicInteger fullSyncs = new AtomicInteger();
 	private final AtomicInteger deltaSyncs = new AtomicInteger();
 	private final AtomicInteger snapshotSyncs = new AtomicInteger();
 	private final AtomicInteger directPasses = new AtomicInteger();
 	private final AtomicInteger fallbacks = new AtomicInteger();
+	private final AtomicInteger fullResyncs = new AtomicInteger();
 
 	public NetworkRuntime(SerializerFacade serializer) {
 		this.serializer = serializer;
@@ -133,7 +142,7 @@ public final class NetworkRuntime {
 		} catch (IOException ex) {
 			fallbacks.incrementAndGet();
 			shrinkBatchWindow();
-			throw ex;
+			throw new ResyncRequiredException("delta apply failed: " + ex.getMessage(), ex);
 		}
 	}
 
@@ -147,15 +156,68 @@ public final class NetworkRuntime {
 			return owned;
 		} catch (IOException ex) {
 			fallbacks.incrementAndGet();
-			OwnedTag decoded = serializer.decodeOwned(payload);
-			if (decoded.hasMeta()) {
-				decoded.meta().clearDirty();
+			shrinkBatchWindow();
+			if (expectedGeneration >= 0 && DeltaCodec.isDeltaPacket(payload)) {
+				throw new ResyncRequiredException("generation/delta mismatch; full resync required", ex);
 			}
-			return decoded;
+			try {
+				DeltaCodec.ApplyResult full = deltaCodec.apply(new CompoundTag(), payload, -1L);
+				OwnedTag owned = OwnedTag.owned(full.tag(), null);
+				if (owned.hasMeta()) {
+					owned.meta().clearDirty();
+				}
+				fullResyncs.incrementAndGet();
+				return owned;
+			} catch (IOException nested) {
+				throw new ResyncRequiredException("packet apply failed", nested);
+			}
 		}
 	}
 
-	public void sendToPlayer(net.minecraft.server.level.ServerPlayer player, OwnedTag previous, OwnedTag current) throws IOException {
+	public void rememberSent(Player player, OwnedTag tag) {
+		if (player == null || tag == null) {
+			return;
+		}
+		lastSentByPlayer.put(player.getUUID(), tag);
+	}
+
+	public void rememberApplied(Player player, OwnedTag tag) {
+		if (player == null || tag == null) {
+			return;
+		}
+		lastAppliedByPlayer.put(player.getUUID(), tag);
+	}
+
+	/**
+	 * On delta failure, push a full sync of the last known server-side tag to the peer.
+	 */
+	public void requestFullResync(Player player) {
+		fallbacks.incrementAndGet();
+		shrinkBatchWindow();
+		if (!(player instanceof ServerPlayer)) {
+			InstantNBT.LOGGER.debug("InstantNBT resync requested but peer is not ServerPlayer");
+			return;
+		}
+		ServerPlayer serverPlayer = (ServerPlayer) player;
+		OwnedTag last = lastSentByPlayer.get(serverPlayer.getUUID());
+		if (last == null) {
+			last = lastAppliedByPlayer.get(serverPlayer.getUUID());
+		}
+		if (last == null) {
+			InstantNBT.LOGGER.warn("InstantNBT full resync requested for {} but no snapshot is cached", serverPlayer.getScoreboardName());
+			return;
+		}
+		try {
+			byte[] packet = buildFull(last);
+			SyncPackets.sendToPlayer(serverPlayer, packet, -1L, true);
+			fullResyncs.incrementAndGet();
+			InstantNBT.LOGGER.info("InstantNBT issued full resync to {} ({} bytes)", serverPlayer.getScoreboardName(), packet.length);
+		} catch (Exception ex) {
+			InstantNBT.LOGGER.warn("InstantNBT full resync failed for {}: {}", serverPlayer.getScoreboardName(), ex.toString());
+		}
+	}
+
+	public void sendToPlayer(ServerPlayer player, OwnedTag previous, OwnedTag current) throws IOException {
 		if (player == null || current == null) {
 			return;
 		}
@@ -173,8 +235,13 @@ public final class NetworkRuntime {
 			if (packet.length == 0) {
 				return;
 			}
+			if (DeltaCodec.isFullPacket(packet)) {
+				full = true;
+				baseGen = -1L;
+			}
 		}
 		SyncPackets.sendToPlayer(player, packet, baseGen, full);
+		rememberSent(player, current);
 	}
 
 	public void sendToServer(OwnedTag previous, OwnedTag current) throws IOException {
@@ -194,6 +261,10 @@ public final class NetworkRuntime {
 			baseGen = previous.generation();
 			if (packet.length == 0) {
 				return;
+			}
+			if (DeltaCodec.isFullPacket(packet)) {
+				full = true;
+				baseGen = -1L;
 			}
 		}
 		SyncPackets.sendToServer(packet, baseGen, full);
@@ -234,5 +305,9 @@ public final class NetworkRuntime {
 
 	public int fallbacks() {
 		return fallbacks.get();
+	}
+
+	public int fullResyncs() {
+		return fullResyncs.get();
 	}
 }

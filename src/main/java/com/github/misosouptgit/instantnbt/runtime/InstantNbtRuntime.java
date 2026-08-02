@@ -125,6 +125,7 @@ public final class InstantNbtRuntime {
 			memoryManager.start();
 		}
 		serializer.configure(config.fastCodec, config.legacyFallback, config.mode == RuntimePreset.SAFE && !config.fastCodec);
+		serializer.configureLazy(config.lazyDeserialize, config.chunkEncodeThresholdBytes);
 		serializer.setGuard(ValidationGuard.defaults());
 		networkRuntime.configure(config.deltaSync, config.snapshotSync, config.integratedDirectPass, config.packetBatching);
 		OwnedTag.configureCow(featureRegistry.isEnabled(FeatureRegistry.FEAT_COW), CowStrategy.SHALLOW_FIRST, 4);

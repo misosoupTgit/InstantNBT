@@ -28,6 +28,8 @@ public final class InstantNbtConfig {
 	public boolean enforceAcquireRelease = true;
 	public boolean autoFreezeSnapshot = true;
 	public boolean trackItemStackNbt = false;
+	public boolean trackChunkNbt = true;
+	public int chunkEncodeThresholdBytes = 64 * 1024;
 
 	public boolean fastCodec = true;
 	public boolean legacyFallback = true;
@@ -65,6 +67,8 @@ public final class InstantNbtConfig {
 				ownershipStrict = true;
 				sharedTagEnabled = false;
 				trackItemStackNbt = false;
+				trackChunkNbt = false;
+				lazyDeserialize = false;
 				break;
 			case AGGRESSIVE:
 				deltaSync = true;
@@ -74,6 +78,9 @@ public final class InstantNbtConfig {
 				sharedTagEnabled = true;
 				ownershipStrict = true;
 				trackItemStackNbt = true;
+				trackChunkNbt = true;
+				lazyDeserialize = false;
+				chunkEncodeThresholdBytes = 32 * 1024;
 				break;
 			case BALANCED:
 			default:
@@ -84,6 +91,9 @@ public final class InstantNbtConfig {
 				sharedTagEnabled = true;
 				ownershipStrict = true;
 				trackItemStackNbt = false;
+				trackChunkNbt = true;
+				lazyDeserialize = false;
+				chunkEncodeThresholdBytes = 64 * 1024;
 				break;
 		}
 	}
@@ -122,11 +132,13 @@ public final class InstantNbtConfig {
 			w.write("strict = " + ownershipStrict + "\n");
 			w.write("enforceAcquireRelease = " + enforceAcquireRelease + "\n");
 			w.write("autoFreezeSnapshot = " + autoFreezeSnapshot + "\n");
-			w.write("trackItemStackNbt = " + trackItemStackNbt + "\n\n");
+			w.write("trackItemStackNbt = " + trackItemStackNbt + "\n");
+			w.write("trackChunkNbt = " + trackChunkNbt + "\n\n");
 			w.write("[serializer]\n");
 			w.write("fastCodec = " + fastCodec + "\n");
 			w.write("legacyFallback = " + legacyFallback + "\n");
 			w.write("lazyDeserialize = " + lazyDeserialize + "\n");
+			w.write("chunkEncodeThresholdBytes = " + chunkEncodeThresholdBytes + "\n");
 			w.write("unsafeIO = " + unsafeIO + "\n\n");
 			w.write("[network]\n");
 			w.write("deltaSync = " + deltaSync + "\n");
@@ -182,10 +194,12 @@ public final class InstantNbtConfig {
 		enforceAcquireRelease = bool(values, "ownership.enforceAcquireRelease", enforceAcquireRelease);
 		autoFreezeSnapshot = bool(values, "ownership.autoFreezeSnapshot", autoFreezeSnapshot);
 		trackItemStackNbt = bool(values, "ownership.trackItemStackNbt", trackItemStackNbt);
+		trackChunkNbt = bool(values, "ownership.trackChunkNbt", trackChunkNbt);
 
 		fastCodec = bool(values, "serializer.fastCodec", fastCodec);
 		legacyFallback = bool(values, "serializer.legacyFallback", legacyFallback);
 		lazyDeserialize = bool(values, "serializer.lazyDeserialize", lazyDeserialize);
+		chunkEncodeThresholdBytes = integer(values, "serializer.chunkEncodeThresholdBytes", chunkEncodeThresholdBytes);
 		unsafeIO = bool(values, "serializer.unsafeIO", unsafeIO);
 
 		deltaSync = bool(values, "network.deltaSync", deltaSync);
@@ -221,6 +235,18 @@ public final class InstantNbtConfig {
 			return fallback;
 		}
 		return Boolean.parseBoolean(v);
+	}
+
+	private static int integer(Map<String, String> map, String key, int fallback) {
+		String v = map.get(key);
+		if (v == null) {
+			return fallback;
+		}
+		try {
+			return Integer.parseInt(v.trim());
+		} catch (NumberFormatException ex) {
+			return fallback;
+		}
 	}
 
 	private static String str(Map<String, String> map, String key, String fallback) {

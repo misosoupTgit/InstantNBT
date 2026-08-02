@@ -13,7 +13,8 @@
     "ListTagMixin",
     "ItemStackMixin",
     "EntityMixin",
-    "BlockEntityMixin"
+    "BlockEntityMixin",
+    "ChunkSerializerMixin"
   ],
   "client": []
 }
