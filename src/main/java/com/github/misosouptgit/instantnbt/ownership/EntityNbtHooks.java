@@ -1,5 +1,6 @@
 package com.github.misosouptgit.instantnbt.ownership;
 
+import com.github.misosouptgit.instantnbt.config.InstantNbtConfig;
 import com.github.misosouptgit.instantnbt.runtime.InstantNbtRuntime;
 import net.minecraft.nbt.CompoundTag;
 
@@ -22,19 +23,38 @@ public final class EntityNbtHooks {
 			return;
 		}
 		try {
-			InstantNbtRuntime runtime = InstantNbtRuntime.get();
-			if (!runtime.trackingActive()) {
+			if (!InstantNbtRuntime.hotTracking()) {
 				return;
 			}
-			OwnedTag owned = runtime.tracker().find(tag);
+			InstantNbtRuntime runtime = InstantNbtRuntime.get();
+			InstantNbtConfig config = runtime.config();
+			boolean wantCow = config.copyCowEnabled || config.autoFreezeSnapshot;
+			if (!wantCow) {
+				OwnedTag existing = TrackedTagAccess.peek(tag);
+				if (existing != null && saved) {
+					TagWriteHooks.onMutate(tag);
+				}
+				return;
+			}
+			if (saved && !NbtSizeHeuristics.worthOwnership(tag, config)) {
+				return;
+			}
+			OwnedTag owned = TrackedTagAccess.peek(tag);
 			if (owned == null) {
 				owned = OwnedTag.of(tag);
 				runtime.tracker().track(owned);
 			}
-			if (saved && runtime.config().autoFreezeSnapshot) {
-				// Save boundary = natural immutable snapshot for subsequent cheap CoW copies.
+			if (saved && config.autoFreezeSnapshot) {
 				if (!owned.isFrozen()) {
 					owned.freeze();
+				}
+				if (config.autoInternOnFreeze
+					&& config.sharedTagEnabled
+					&& InstantNbtRuntime.hotOpts()) {
+					try {
+						runtime.sharedTags().intern(owned);
+					} catch (Throwable ignored) {
+					}
 				}
 			} else if (saved) {
 				TagWriteHooks.onMutate(tag);

@@ -21,26 +21,31 @@ public final class InstantNbtConfig {
 
 	public boolean arenaEnabled = true;
 	public boolean poolEnabled = true;
-	public boolean sharedTagEnabled = true;
+	public boolean sharedTagEnabled = false;
 	public boolean gcMonitorEnabled = true;
 
 	public boolean ownershipStrict = true;
-	public boolean enforceAcquireRelease = true;
-	public boolean autoFreezeSnapshot = true;
+	public boolean enforceAcquireRelease = false;
 	public boolean trackItemStackNbt = false;
-	public boolean trackChunkNbt = true;
+	public boolean trackChunkNbt = false;
 	public boolean copyCowEnabled = true;
+	public boolean autoInternOnFreeze = false;
+	public boolean autoFreezeSnapshot = true;
+	/** Skip freeze/track for tiny compounds (keys). */
+	public int minFreezeKeys = 3;
 	public int chunkEncodeThresholdBytes = 64 * 1024;
 
 	public boolean fastCodec = true;
+	/** Swap vanilla NbtIo binary codec (region/player IO). */
+	public boolean nbtIoRedirect = true;
 	public boolean legacyFallback = true;
 	public boolean lazyDeserialize = false;
 	public boolean unsafeIO = false;
 
-	public boolean deltaSync = true;
+	public boolean deltaSync = false;
 	public boolean snapshotSync = true;
-	public boolean packetBatching = true;
-	public boolean integratedDirectPass = true;
+	public boolean packetBatching = false;
+	public boolean integratedDirectPass = false;
 
 	public boolean autoDetectMods = true;
 	/** soft = warn only; strict = disable delta/direct-pass; off = ignore unknowns. */
@@ -48,7 +53,7 @@ public final class InstantNbtConfig {
 	public boolean forceLegacyForUnknown = false;
 
 	public boolean diagnosticsCommand = true;
-	public boolean diagnosticsOverlay = true;
+	public boolean diagnosticsOverlay = false;
 	public boolean exportJson = true;
 
 	public boolean killSwitch = false;
@@ -65,6 +70,7 @@ public final class InstantNbtConfig {
 				deltaSync = false;
 				integratedDirectPass = false;
 				fastCodec = false;
+				nbtIoRedirect = false;
 				legacyFallback = true;
 				forceLegacyForUnknown = true;
 				unknownModPolicy = "strict";
@@ -73,19 +79,26 @@ public final class InstantNbtConfig {
 				trackItemStackNbt = false;
 				trackChunkNbt = false;
 				copyCowEnabled = false;
+				autoInternOnFreeze = false;
+				autoFreezeSnapshot = false;
 				lazyDeserialize = false;
 				unsafeIO = false;
 				break;
 			case AGGRESSIVE:
 				deltaSync = true;
 				integratedDirectPass = true;
+				packetBatching = true;
 				fastCodec = true;
+				nbtIoRedirect = true;
 				legacyFallback = true;
 				sharedTagEnabled = true;
 				ownershipStrict = true;
 				trackItemStackNbt = true;
 				trackChunkNbt = true;
 				copyCowEnabled = true;
+				autoInternOnFreeze = true;
+				autoFreezeSnapshot = true;
+				minFreezeKeys = 4;
 				lazyDeserialize = false;
 				chunkEncodeThresholdBytes = 32 * 1024;
 				forceLegacyForUnknown = false;
@@ -94,20 +107,30 @@ public final class InstantNbtConfig {
 				break;
 			case BALANCED:
 			default:
-				deltaSync = true;
-				integratedDirectPass = true;
+				deltaSync = false;
+				integratedDirectPass = false;
+				packetBatching = false;
 				fastCodec = true;
+				nbtIoRedirect = true;
 				legacyFallback = true;
-				sharedTagEnabled = true;
+				sharedTagEnabled = false;
 				ownershipStrict = true;
+				enforceAcquireRelease = false;
 				trackItemStackNbt = false;
-				trackChunkNbt = true;
+				trackChunkNbt = false;
 				copyCowEnabled = true;
+				autoInternOnFreeze = false;
+				autoFreezeSnapshot = true;
+				minFreezeKeys = 3;
+				// Plan 9: pool/arena on — targets GC hitch (felt as FPS stutter), not render throughput.
+				poolEnabled = true;
+				arenaEnabled = true;
 				lazyDeserialize = false;
 				chunkEncodeThresholdBytes = 64 * 1024;
 				forceLegacyForUnknown = false;
 				unknownModPolicy = "soft";
 				unsafeIO = false;
+				diagnosticsOverlay = false;
 				break;
 		}
 	}
@@ -148,9 +171,12 @@ public final class InstantNbtConfig {
 			w.write("autoFreezeSnapshot = " + autoFreezeSnapshot + "\n");
 			w.write("trackItemStackNbt = " + trackItemStackNbt + "\n");
 			w.write("trackChunkNbt = " + trackChunkNbt + "\n");
-			w.write("copyCowEnabled = " + copyCowEnabled + "\n\n");
+			w.write("copyCowEnabled = " + copyCowEnabled + "\n");
+			w.write("autoInternOnFreeze = " + autoInternOnFreeze + "\n");
+			w.write("minFreezeKeys = " + minFreezeKeys + "\n\n");
 			w.write("[serializer]\n");
 			w.write("fastCodec = " + fastCodec + "\n");
+			w.write("nbtIoRedirect = " + nbtIoRedirect + "\n");
 			w.write("legacyFallback = " + legacyFallback + "\n");
 			w.write("lazyDeserialize = " + lazyDeserialize + "\n");
 			w.write("chunkEncodeThresholdBytes = " + chunkEncodeThresholdBytes + "\n");
@@ -212,8 +238,11 @@ public final class InstantNbtConfig {
 		trackItemStackNbt = bool(values, "ownership.trackItemStackNbt", trackItemStackNbt);
 		trackChunkNbt = bool(values, "ownership.trackChunkNbt", trackChunkNbt);
 		copyCowEnabled = bool(values, "ownership.copyCowEnabled", copyCowEnabled);
+		autoInternOnFreeze = bool(values, "ownership.autoInternOnFreeze", autoInternOnFreeze);
+		minFreezeKeys = integer(values, "ownership.minFreezeKeys", minFreezeKeys);
 
 		fastCodec = bool(values, "serializer.fastCodec", fastCodec);
+		nbtIoRedirect = bool(values, "serializer.nbtIoRedirect", nbtIoRedirect);
 		legacyFallback = bool(values, "serializer.legacyFallback", legacyFallback);
 		lazyDeserialize = bool(values, "serializer.lazyDeserialize", lazyDeserialize);
 		chunkEncodeThresholdBytes = integer(values, "serializer.chunkEncodeThresholdBytes", chunkEncodeThresholdBytes);

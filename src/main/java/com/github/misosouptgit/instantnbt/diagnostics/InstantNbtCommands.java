@@ -3,6 +3,8 @@ package com.github.misosouptgit.instantnbt.diagnostics;
 import com.github.misosouptgit.instantnbt.InstantNBT;
 import com.github.misosouptgit.instantnbt.runtime.InstantNbtRuntime;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.BoolArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -29,9 +31,17 @@ public final class InstantNbtCommands {
 			reply(ctx.getSource(), "copyCow hits=" + com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.hits()
 				+ " misses=" + com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.misses()
 				+ " estSavedBytes=" + com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.estimatedBytesSaved());
+			reply(ctx.getSource(), "codec fast=" + com.github.misosouptgit.instantnbt.serializer.FastBinaryCodec.hits()
+				+ " fallback=" + com.github.misosouptgit.instantnbt.serializer.FastBinaryCodec.fallbacks()
+				+ " nbtIo W/R=" + com.github.misosouptgit.instantnbt.serializer.NbtIoHooks.writes()
+				+ "/" + com.github.misosouptgit.instantnbt.serializer.NbtIoHooks.reads()
+				+ " deltaZ=" + InstantNbtRuntime.get().network().deltaCodec().compressions()
+				+ " direct=" + InstantNbtRuntime.get().network().directPasses());
 			reply(ctx.getSource(), "tracked=" + InstantNbtRuntime.get().tracker().size()
-				+ " copyCowEnabled=" + InstantNbtRuntime.get().config().copyCowEnabled);
-			reply(ctx.getSource(), "Note: InstantNBT optimizes NBT copy/sync/GC pressure — not render FPS.");
+				+ " copyCow=" + InstantNbtRuntime.get().config().copyCowEnabled
+				+ " nbtIoRedirect=" + InstantNbtRuntime.get().config().nbtIoRedirect
+				+ " autoFreeze=" + InstantNbtRuntime.get().config().autoFreezeSnapshot);
+			reply(ctx.getSource(), "Best gains: world save/load (NbtIo), large entity NBT copy after freeze — not empty-world FPS.");
 			return 1;
 		}));
 		root.then(Commands.literal("benchmark").executes(ctx -> {
@@ -57,6 +67,32 @@ public final class InstantNbtCommands {
 				return 0;
 			}
 		}));
+		root.then(Commands.literal("stress")
+			.then(Commands.argument("seconds", IntegerArgumentType.integer(5, 600))
+				.executes(ctx -> startStress(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "seconds"), 32, false))
+				.then(Commands.argument("opsPerTick", IntegerArgumentType.integer(1, 512))
+					.executes(ctx -> startStress(
+						ctx.getSource(),
+						IntegerArgumentType.getInteger(ctx, "seconds"),
+						IntegerArgumentType.getInteger(ctx, "opsPerTick"),
+						false
+					))
+					.then(Commands.argument("saveEveryTick", BoolArgumentType.bool())
+						.executes(ctx -> startStress(
+							ctx.getSource(),
+							IntegerArgumentType.getInteger(ctx, "seconds"),
+							IntegerArgumentType.getInteger(ctx, "opsPerTick"),
+							BoolArgumentType.getBool(ctx, "saveEveryTick")
+						)))))
+			.then(Commands.literal("stop").executes(ctx -> {
+				StressHarness.stop("command");
+				reply(ctx.getSource(), "stress stopped");
+				return 1;
+			}))
+			.then(Commands.literal("status").executes(ctx -> {
+				reply(ctx.getSource(), "stress running=" + StressHarness.isRunning());
+				return 1;
+			})));
 		root.then(Commands.literal("killswitch")
 			.then(Commands.literal("engage").executes(ctx -> {
 				InstantNbtRuntime.get().killSwitch().engage("command", InstantNbtRuntime.get());
@@ -70,6 +106,18 @@ public final class InstantNbtCommands {
 			})));
 
 		dispatcher.register(root);
+	}
+
+	private static int startStress(CommandSourceStack source, int seconds, int opsPerTick, boolean saveEveryTick) {
+		try {
+			StressHarness.start(source.getServer(), seconds, opsPerTick, saveEveryTick);
+			reply(source, "stress started " + seconds + "s ops/tick=" + opsPerTick + " save=" + saveEveryTick
+				+ " — run Spark with matching --timeout, then AFK");
+			return 1;
+		} catch (Exception ex) {
+			reply(source, "stress failed: " + ex.getMessage());
+			return 0;
+		}
 	}
 
 	private static int dump(CommandSourceStack source, List<String> lines) {

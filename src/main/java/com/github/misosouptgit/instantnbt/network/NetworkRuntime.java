@@ -2,6 +2,7 @@ package com.github.misosouptgit.instantnbt.network;
 
 import com.github.misosouptgit.instantnbt.InstantNBT;
 import com.github.misosouptgit.instantnbt.ownership.OwnedTag;
+import com.github.misosouptgit.instantnbt.runtime.InstantNbtRuntime;
 import com.github.misosouptgit.instantnbt.serializer.SerializerFacade;
 import com.github.misosouptgit.instantnbt.serializer.ValidationGuard;
 import net.minecraft.nbt.CompoundTag;
@@ -272,15 +273,34 @@ public final class NetworkRuntime {
 
 	public synchronized int flushBatch() {
 		int count = pending.size();
+		if (count == 0) {
+			return 0;
+		}
+		List<OwnedTag> batch = new ArrayList<>(pending);
 		pending.clear();
+		boolean useDirect = directPass && InstantNbtRuntime.get().integrated().isIntegrated();
+		for (OwnedTag tag : batch) {
+			try {
+				if (useDirect) {
+					if (!tag.isFrozen()) {
+						tag.freeze();
+					}
+					directPass(tag);
+				} else if (tag.dirty()) {
+					transport.offerPacket(buildFull(tag));
+				}
+			} catch (Exception ignored) {
+				fallbacks.incrementAndGet();
+			}
+		}
 		return count;
 	}
 
 	public synchronized void onTickEnd() {
-		if (!pending.isEmpty()) {
-			flushBatch();
+		if (pending.isEmpty()) {
+			return;
 		}
-		transport.drainDirectNoop();
+		flushBatch();
 	}
 
 	public void shrinkBatchWindow() {

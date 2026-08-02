@@ -52,6 +52,7 @@ public final class MemoryManager {
 		if (!started) {
 			return;
 		}
+		garbageMonitor.sampleJvmHeap();
 		refCounter.flush(null);
 		allocator.endTick();
 		if (garbageMonitor.shouldShrinkPools()) {

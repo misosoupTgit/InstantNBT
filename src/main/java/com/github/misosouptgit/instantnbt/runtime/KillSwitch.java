@@ -44,6 +44,7 @@ public final class KillSwitch {
 	public synchronized void reset() {
 		engaged = false;
 		reason = "";
+		InstantNbtRuntime.get().refreshHotFlagsPublic();
 	}
 
 	private void persist(InstantNbtRuntime runtime) {

@@ -16,17 +16,20 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Generation-aware delta / full codec (Project Plan 11.2–11.4).
+ * Generation-aware delta / full codec with optional deflate (Project Plan 11.2–11.4).
  */
 public final class DeltaCodec {
 	private static final byte[] MAGIC = "INBT".getBytes(StandardCharsets.US_ASCII);
-	private static final byte VERSION = 1;
+	private static final byte VERSION = 2;
+	private static final byte VERSION_LEGACY = 1;
 	private static final byte MODE_FULL = 0;
 	private static final byte MODE_DELTA = 1;
 
 	private final ValidationGuard guard;
+	private final AtomicInteger compressions = new AtomicInteger();
 
 	public DeltaCodec(ValidationGuard guard) {
 		this.guard = guard == null ? ValidationGuard.defaults() : guard;
@@ -46,18 +49,13 @@ public final class DeltaCodec {
 
 	public byte[] encodeFull(OwnedTag tag) throws IOException {
 		CompoundTag compound = asCompound(tag.payload());
-		ByteArrayOutputStream bos = new ByteArrayOutputStream(256);
-		try (DataOutputStream out = new DataOutputStream(bos)) {
-			out.write(MAGIC);
-			out.writeByte(VERSION);
-			out.writeByte(MODE_FULL);
-			out.writeLong(tag.generation());
-			out.writeLong(tag.generation());
-			byte[] body = BinaryNbtCodec.encodeCompound(compound);
-			out.writeInt(body.length);
-			out.write(body);
+		ByteArrayOutputStream rest = new ByteArrayOutputStream(256);
+		try (DataOutputStream body = new DataOutputStream(rest)) {
+			byte[] nbt = BinaryNbtCodec.encodeCompound(compound);
+			body.writeInt(nbt.length);
+			body.write(nbt);
 		}
-		return bos.toByteArray();
+		return wrap(MODE_FULL, tag.generation(), tag.generation(), rest.toByteArray());
 	}
 
 	public byte[] encodeDelta(OwnedTag previous, OwnedTag current) throws IOException {
@@ -92,32 +90,49 @@ public final class DeltaCodec {
 		if (removed.isEmpty() && changed.isEmpty()) {
 			return new byte[0];
 		}
-		// Large churn -> full sync is cheaper / safer.
 		if (removed.size() + changed.size() > Math.max(8, keys.size() / 2)) {
 			return encodeFull(current);
 		}
 
-		ByteArrayOutputStream bos = new ByteArrayOutputStream(256);
+		ByteArrayOutputStream rest = new ByteArrayOutputStream(256);
+		try (DataOutputStream body = new DataOutputStream(rest)) {
+			body.writeInt(removed.size());
+			for (String key : removed) {
+				body.writeUTF(key);
+			}
+			body.writeInt(changed.size());
+			for (String key : changed) {
+				body.writeUTF(key);
+				byte[] nbt = BinaryNbtCodec.encode(after.get(key));
+				body.writeInt(nbt.length);
+				body.write(nbt);
+			}
+		}
+		return wrap(MODE_DELTA, previous.generation(), current.generation(), rest.toByteArray());
+	}
+
+	private byte[] wrap(byte mode, long baseGen, long newGen, byte[] rest) throws IOException {
+		ByteArrayOutputStream bos = new ByteArrayOutputStream(rest.length + 32);
 		try (DataOutputStream out = new DataOutputStream(bos)) {
 			out.write(MAGIC);
 			out.writeByte(VERSION);
-			out.writeByte(MODE_DELTA);
-			out.writeLong(previous.generation());
-			out.writeLong(current.generation());
-			out.writeInt(removed.size());
-			for (String key : removed) {
-				out.writeUTF(key);
-			}
-			out.writeInt(changed.size());
-			for (String key : changed) {
-				out.writeUTF(key);
-				byte[] body = BinaryNbtCodec.encode(after.get(key));
-				out.writeInt(body.length);
-				out.write(body);
+			out.writeByte(mode);
+			out.writeLong(baseGen);
+			out.writeLong(newGen);
+			byte[] compressed = PacketCompressor.maybeCompress(rest, PacketCompressor.DEFAULT_THRESHOLD);
+			if (compressed != null) {
+				out.writeBoolean(true);
+				out.writeInt(rest.length);
+				out.writeInt(compressed.length);
+				out.write(compressed);
+				compressions.incrementAndGet();
+			} else {
+				out.writeBoolean(false);
+				out.writeInt(rest.length);
+				out.write(rest);
 			}
 		}
-		byte[] data = bos.toByteArray();
-		return data;
+		return bos.toByteArray();
 	}
 
 	public ApplyResult apply(CompoundTag base, byte[] packet, long expectedBaseGeneration) throws IOException {
@@ -130,39 +145,67 @@ public final class DeltaCodec {
 				throw new IOException("bad InstantNBT packet magic");
 			}
 			int version = in.readUnsignedByte();
-			if (version != VERSION) {
-				throw new IOException("unsupported packet version " + version);
-			}
 			int mode = in.readUnsignedByte();
 			long baseGen = in.readLong();
 			long newGen = in.readLong();
 			if (expectedBaseGeneration >= 0 && baseGen != expectedBaseGeneration && mode == MODE_DELTA) {
 				throw new IOException("generation mismatch base=" + baseGen + " expected=" + expectedBaseGeneration);
 			}
-			if (mode == MODE_FULL) {
-				int len = in.readInt();
-				byte[] body = in.readNBytes(len);
-				CompoundTag decoded = BinaryNbtCodec.decodeCompound(body);
-				return new ApplyResult(decoded, newGen, SyncMode.FULL, false);
+			byte[] rest;
+			if (version == VERSION) {
+				rest = readRestV2(in);
+			} else if (version == VERSION_LEGACY) {
+				rest = readRestV1(in, mode);
+			} else {
+				throw new IOException("unsupported packet version " + version);
 			}
-			if (mode != MODE_DELTA) {
-				throw new IOException("unknown sync mode " + mode);
+			try (DataInputStream body = new DataInputStream(new ByteArrayInputStream(rest))) {
+				if (mode == MODE_FULL) {
+					int len = body.readInt();
+					byte[] nbt = body.readNBytes(len);
+					CompoundTag decoded = BinaryNbtCodec.decodeCompound(nbt);
+					return new ApplyResult(decoded, newGen, SyncMode.FULL, false);
+				}
+				if (mode != MODE_DELTA) {
+					throw new IOException("unknown sync mode " + mode);
+				}
+				CompoundTag target = base == null ? new CompoundTag() : base.copy();
+				int removedCount = body.readInt();
+				for (int i = 0; i < removedCount; i++) {
+					target.remove(body.readUTF());
+				}
+				int changedCount = body.readInt();
+				for (int i = 0; i < changedCount; i++) {
+					String key = body.readUTF();
+					int len = body.readInt();
+					byte[] nbt = body.readNBytes(len);
+					target.put(key, BinaryNbtCodec.decode(nbt));
+				}
+				return new ApplyResult(target, newGen, SyncMode.DELTA, false);
 			}
-			CompoundTag target = base == null ? new CompoundTag() : base.copy();
-			int removedCount = in.readInt();
-			for (int i = 0; i < removedCount; i++) {
-				target.remove(in.readUTF());
-			}
-			int changedCount = in.readInt();
-			for (int i = 0; i < changedCount; i++) {
-				String key = in.readUTF();
-				int len = in.readInt();
-				byte[] body = in.readNBytes(len);
-				Tag value = BinaryNbtCodec.decode(body);
-				target.put(key, value);
-			}
-			return new ApplyResult(target, newGen, SyncMode.DELTA, false);
 		}
+	}
+
+	private static byte[] readRestV2(DataInputStream in) throws IOException {
+		boolean compressed = in.readBoolean();
+		if (compressed) {
+			int rawLen = in.readInt();
+			int len = in.readInt();
+			return PacketCompressor.decompress(in.readNBytes(len), rawLen);
+		}
+		int len = in.readInt();
+		return in.readNBytes(len);
+	}
+
+	private static byte[] readRestV1(DataInputStream in, int mode) throws IOException {
+		// Legacy: body fields follow immediately (full: int+bytes, delta: lists).
+		ByteArrayOutputStream bos = new ByteArrayOutputStream();
+		byte[] buf = new byte[1024];
+		int n;
+		while ((n = in.read(buf)) > 0) {
+			bos.write(buf, 0, n);
+		}
+		return bos.toByteArray();
 	}
 
 	private static CompoundTag asCompound(Tag tag) {
@@ -174,6 +217,10 @@ public final class DeltaCodec {
 			wrap.put("value", tag);
 		}
 		return wrap;
+	}
+
+	public int compressions() {
+		return compressions.get();
 	}
 
 	public static final class ApplyResult {
@@ -190,7 +237,7 @@ public final class DeltaCodec {
 		}
 
 		static ApplyResult noop(CompoundTag tag) {
-			return new ApplyResult(tag, tag == null ? 0L : 0L, SyncMode.DELTA, true);
+			return new ApplyResult(tag, 0L, SyncMode.DELTA, true);
 		}
 
 		public CompoundTag tag() {

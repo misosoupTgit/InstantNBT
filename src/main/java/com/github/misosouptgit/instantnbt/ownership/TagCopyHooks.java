@@ -3,13 +3,13 @@ package com.github.misosouptgit.instantnbt.ownership;
 import com.github.misosouptgit.instantnbt.runtime.InstantNbtRuntime;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
 
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Accelerates {@link Tag#copy()} for frozen/shared OwnedTags via structural CoW (Plan 7).
- * Read-mostly copies become cheap; first write deep-splits via {@link TagWriteHooks}.
+ * Accelerates {@link net.minecraft.nbt.Tag#copy()} for frozen/shared roots via structural CoW.
+ * Nested compounds stay unique per tree; only immutable leaves are identity-shared (safe).
+ * Nested nodes are NOT tracker-registered (avoids O(nodes) map cost that erased CoW gains).
  */
 public final class TagCopyHooks {
 	private static final AtomicLong HITS = new AtomicLong();
@@ -18,22 +18,17 @@ public final class TagCopyHooks {
 
 	private TagCopyHooks() {}
 
-	/**
-	 * @return accelerated copy, or {@code null} to fall back to vanilla deep copy
-	 */
+	public static boolean enabled() {
+		return InstantNbtRuntime.hotCopyCow();
+	}
+
 	public static CompoundTag tryCopyCompound(CompoundTag original) {
-		if (original == null) {
+		if (original == null || !enabled()) {
 			return null;
 		}
 		try {
-			InstantNbtRuntime runtime = InstantNbtRuntime.get();
-			if (!runtime.optimizationsActive() || !runtime.config().copyCowEnabled) {
-				MISSES.incrementAndGet();
-				return null;
-			}
-			OwnedTag owned = runtime.tracker().find(original);
+			OwnedTag owned = TrackedTagAccess.peek(original);
 			if (owned == null || (!owned.isFrozen() && !owned.isShared())) {
-				MISSES.incrementAndGet();
 				return null;
 			}
 			CompoundTag copy = CowEngine.shallowStructureCopyCompound(original);
@@ -43,10 +38,9 @@ public final class TagCopyHooks {
 			} else {
 				copyOwned.share();
 			}
-			runtime.tracker().track(copyOwned);
-			trackNestedShared(runtime, copy, owned.isFrozen());
+			InstantNbtRuntime.get().tracker().track(copyOwned);
 			HITS.incrementAndGet();
-			BYTES_SAVED_EST.addAndGet(Math.max(16, CowEngine.estimateSize(original) * 8L));
+			BYTES_SAVED_EST.addAndGet(Math.max(16, original.size() * 24L));
 			return copy;
 		} catch (Throwable ignored) {
 			MISSES.incrementAndGet();
@@ -55,18 +49,12 @@ public final class TagCopyHooks {
 	}
 
 	public static ListTag tryCopyList(ListTag original) {
-		if (original == null) {
+		if (original == null || !enabled()) {
 			return null;
 		}
 		try {
-			InstantNbtRuntime runtime = InstantNbtRuntime.get();
-			if (!runtime.optimizationsActive() || !runtime.config().copyCowEnabled) {
-				MISSES.incrementAndGet();
-				return null;
-			}
-			OwnedTag owned = runtime.tracker().find(original);
+			OwnedTag owned = TrackedTagAccess.peek(original);
 			if (owned == null || (!owned.isFrozen() && !owned.isShared())) {
-				MISSES.incrementAndGet();
 				return null;
 			}
 			ListTag copy = CowEngine.shallowStructureCopyList(original);
@@ -76,52 +64,13 @@ public final class TagCopyHooks {
 			} else {
 				copyOwned.share();
 			}
-			runtime.tracker().track(copyOwned);
-			trackNestedShared(runtime, copy, owned.isFrozen());
+			InstantNbtRuntime.get().tracker().track(copyOwned);
 			HITS.incrementAndGet();
-			BYTES_SAVED_EST.addAndGet(Math.max(16, CowEngine.estimateSize(original) * 8L));
+			BYTES_SAVED_EST.addAndGet(Math.max(16, original.size() * 24L));
 			return copy;
 		} catch (Throwable ignored) {
 			MISSES.incrementAndGet();
 			return null;
-		}
-	}
-
-	private static void trackNestedShared(InstantNbtRuntime runtime, Tag tag, boolean freeze) {
-		if (tag instanceof CompoundTag) {
-			CompoundTag compound = (CompoundTag) tag;
-			for (String key : compound.getAllKeys()) {
-				Tag child = compound.get(key);
-				if (child instanceof CompoundTag || child instanceof ListTag) {
-					if (runtime.tracker().find(child) == null) {
-						OwnedTag nested = OwnedTag.of(child);
-						if (freeze) {
-							nested.freeze();
-						} else {
-							nested.share();
-						}
-						runtime.tracker().track(nested);
-					}
-					trackNestedShared(runtime, child, freeze);
-				}
-			}
-		} else if (tag instanceof ListTag) {
-			ListTag list = (ListTag) tag;
-			for (int i = 0; i < list.size(); i++) {
-				Tag child = list.get(i);
-				if (child instanceof CompoundTag || child instanceof ListTag) {
-					if (runtime.tracker().find(child) == null) {
-						OwnedTag nested = OwnedTag.of(child);
-						if (freeze) {
-							nested.freeze();
-						} else {
-							nested.share();
-						}
-						runtime.tracker().track(nested);
-					}
-					trackNestedShared(runtime, child, freeze);
-				}
-			}
 		}
 	}
 

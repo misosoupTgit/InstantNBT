@@ -2,40 +2,45 @@ package com.github.misosouptgit.instantnbt.ownership;
 
 import net.minecraft.nbt.Tag;
 
-import java.util.Map;
-import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Weak identity map from vanilla Tag -> OwnedTag for optional API tracking.
+ * Ownership tracker: mixin identity slot is source of truth (no content-hash WeakHashMap).
  */
 public final class OwnedTagTracker {
-	private final Map<Tag, OwnedTag> byPayload = new WeakHashMap<>();
+	private final AtomicInteger approxSize = new AtomicInteger();
 
-	public synchronized void track(OwnedTag tag) {
+	public void track(OwnedTag tag) {
 		if (tag == null) {
 			return;
 		}
-		byPayload.put(tag.payload(), tag);
+		Tag payload = tag.payload();
+		OwnedTag prev = TrackedTagAccess.peek(payload);
+		TrackedTagAccess.bind(payload, tag);
+		if (prev == null) {
+			approxSize.incrementAndGet();
+		}
 	}
 
-	public synchronized OwnedTag find(Tag payload) {
+	public OwnedTag find(Tag payload) {
+		return TrackedTagAccess.peek(payload);
+	}
+
+	public void untrack(Tag payload) {
 		if (payload == null) {
-			return null;
+			return;
 		}
-		return byPayload.get(payload);
-	}
-
-	public synchronized void untrack(Tag payload) {
-		if (payload != null) {
-			byPayload.remove(payload);
+		if (TrackedTagAccess.peek(payload) != null) {
+			TrackedTagAccess.bind(payload, null);
+			approxSize.decrementAndGet();
 		}
 	}
 
-	public synchronized int size() {
-		return byPayload.size();
+	public int size() {
+		return Math.max(0, approxSize.get());
 	}
 
-	public synchronized void clear() {
-		byPayload.clear();
+	public void clear() {
+		approxSize.set(0);
 	}
 }

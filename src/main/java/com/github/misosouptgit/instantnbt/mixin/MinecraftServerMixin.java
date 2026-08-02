@@ -13,6 +13,9 @@ public abstract class MinecraftServerMixin {
 	//? if >=1.17 {
 	@Inject(method = "tickServer", at = @At("HEAD"))
 	private void instantnbt$tickHead(java.util.function.BooleanSupplier haveTime, CallbackInfo ci) {
+		if (!InstantNbtRuntime.hotOpts()) {
+			return;
+		}
 		ThreadDomain.setCurrent(ThreadDomain.INTEGRATED_SERVER);
 		MinecraftServer self = (MinecraftServer) (Object) this;
 		InstantNbtRuntime.get().integrated().setIntegrated(!self.isDedicatedServer());
@@ -20,6 +23,7 @@ public abstract class MinecraftServerMixin {
 
 	@Inject(method = "tickServer", at = @At("RETURN"))
 	private void instantnbt$tickEnd(java.util.function.BooleanSupplier haveTime, CallbackInfo ci) {
+		// Always run: StressHarness needs ticks even when HOT_OPTS is false.
 		InstantNbtRuntime.get().onServerTickEnd();
 	}
 	//?} else {

@@ -16,7 +16,15 @@ public final class CowEngine {
 		if (payload == null) {
 			throw new IllegalArgumentException("payload");
 		}
-		if (strategy == CowStrategy.SHALLOW_FIRST || nestDepth(payload, 0, deepThreshold + 1) < deepThreshold) {
+		// Structural shallow split first — unique root, shared leaves (Plan 7.2 / 7.3).
+		if (strategy == CowStrategy.SHALLOW_FIRST
+			|| nestDepth(payload, 0, deepThreshold + 1) < deepThreshold) {
+			if (payload instanceof CompoundTag) {
+				return shallowStructureCopyCompound((CompoundTag) payload);
+			}
+			if (payload instanceof ListTag) {
+				return shallowStructureCopyList((ListTag) payload);
+			}
 			return payload.copy();
 		}
 		return deepCopy(payload);
@@ -77,9 +85,27 @@ public final class CowEngine {
 
 	/**
 	 * Structural shallow copy: new compound/list nodes, shared immutable leaf tags.
-	 * Nested compounds/lists are re-wrapped so write hooks can CoW-split safely.
+	 * Nested compounds/lists are unique wrappers so in-place writes cannot corrupt the source tree.
 	 */
 	public static CompoundTag shallowStructureCopyCompound(CompoundTag src) {
+		TagWriteHooks.enterInternal();
+		try {
+			return copyCompound0(src);
+		} finally {
+			TagWriteHooks.leaveInternal();
+		}
+	}
+
+	public static ListTag shallowStructureCopyList(ListTag src) {
+		TagWriteHooks.enterInternal();
+		try {
+			return copyList0(src);
+		} finally {
+			TagWriteHooks.leaveInternal();
+		}
+	}
+
+	private static CompoundTag copyCompound0(CompoundTag src) {
 		CompoundTag dst = new CompoundTag();
 		for (String key : src.getAllKeys()) {
 			Tag child = src.get(key);
@@ -87,9 +113,9 @@ public final class CowEngine {
 				continue;
 			}
 			if (child instanceof CompoundTag) {
-				dst.put(key, shallowStructureCopyCompound((CompoundTag) child));
+				dst.put(key, copyCompound0((CompoundTag) child));
 			} else if (child instanceof ListTag) {
-				dst.put(key, shallowStructureCopyList((ListTag) child));
+				dst.put(key, copyList0((ListTag) child));
 			} else {
 				dst.put(key, child);
 			}
@@ -97,14 +123,14 @@ public final class CowEngine {
 		return dst;
 	}
 
-	public static ListTag shallowStructureCopyList(ListTag src) {
+	private static ListTag copyList0(ListTag src) {
 		ListTag dst = new ListTag();
 		for (int i = 0; i < src.size(); i++) {
 			Tag child = src.get(i);
 			if (child instanceof CompoundTag) {
-				dst.add(shallowStructureCopyCompound((CompoundTag) child));
+				dst.add(copyCompound0((CompoundTag) child));
 			} else if (child instanceof ListTag) {
-				dst.add(shallowStructureCopyList((ListTag) child));
+				dst.add(copyList0((ListTag) child));
 			} else {
 				dst.add(child);
 			}

@@ -14,7 +14,9 @@
     "ItemStackMixin",
     "EntityMixin",
     "BlockEntityMixin",
-    "ChunkSerializerMixin"
+    "ChunkSerializerMixin",
+    "NbtIoMixin",
+    "ContainerHelperMixin"
   ],
   "client": []
 }

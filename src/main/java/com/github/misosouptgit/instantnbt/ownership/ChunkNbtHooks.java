@@ -42,6 +42,14 @@ public final class ChunkNbtHooks {
 				if (!owned.isFrozen()) {
 					owned.freeze();
 				}
+				if (runtime.config().autoInternOnFreeze
+					&& runtime.config().sharedTagEnabled
+					&& runtime.optimizationsActive()) {
+					try {
+						runtime.sharedTags().intern(owned);
+					} catch (Throwable ignored) {
+					}
+				}
 			} else if (saved) {
 				TagWriteHooks.onMutate(tag);
 			}

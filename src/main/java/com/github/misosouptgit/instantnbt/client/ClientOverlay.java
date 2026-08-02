@@ -38,10 +38,13 @@ public final class ClientOverlay {
 				runtime.network().deltaSyncs()
 			));
 			texts.add(String.format(
-				"[InstantNBT] cow hit/miss=%d/%d saved~%dB (NBT copy path; not render FPS)",
+				"[InstantNBT] cow %d/%d nbtIo %d/%d codec %d/%d",
 				com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.hits(),
 				com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.misses(),
-				com.github.misosouptgit.instantnbt.ownership.TagCopyHooks.estimatedBytesSaved()
+				com.github.misosouptgit.instantnbt.serializer.NbtIoHooks.writes(),
+				com.github.misosouptgit.instantnbt.serializer.NbtIoHooks.reads(),
+				com.github.misosouptgit.instantnbt.serializer.FastBinaryCodec.hits(),
+				com.github.misosouptgit.instantnbt.serializer.FastBinaryCodec.fallbacks()
 			));
 		});
 		//?}

@@ -82,6 +82,15 @@ public final class InstantNBT {
 			throw new IllegalArgumentException("tag");
 		}
 		tag.freeze();
+		if (runtime().optimizationsActive()
+			&& runtime().config().autoInternOnFreeze
+			&& runtime().config().sharedTagEnabled) {
+			try {
+				return runtime().sharedTags().intern(tag);
+			} catch (RuntimeException ignored) {
+				return tag;
+			}
+		}
 		return tag;
 	}
 

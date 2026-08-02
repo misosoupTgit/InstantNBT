@@ -20,6 +20,11 @@ public abstract class BlockEntityMixin {
 	private void instantnbt$load(CompoundTag tag, CallbackInfo ci) {
 		EntityNbtHooks.onLoaded(tag);
 	}
+
+	@Inject(method = "getUpdateTag()Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"), require = 0)
+	private void instantnbt$getUpdateTag(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<CompoundTag> cir) {
+		EntityNbtHooks.onSaved(cir.getReturnValue());
+	}
 	//?} else {
 	/*@Inject(
 		method = "saveAdditional(Lnet/minecraft/nbt/CompoundTag;Lnet/minecraft/core/HolderLookup$Provider;)V",
@@ -37,6 +42,15 @@ public abstract class BlockEntityMixin {
 	)
 	private void instantnbt$loadAdditional(CompoundTag tag, net.minecraft.core.HolderLookup.Provider provider, CallbackInfo ci) {
 		EntityNbtHooks.onLoaded(tag);
+	}
+
+	@Inject(
+		method = "getUpdateTag(Lnet/minecraft/core/HolderLookup$Provider;)Lnet/minecraft/nbt/CompoundTag;",
+		at = @At("RETURN"),
+		require = 0
+	)
+	private void instantnbt$getUpdateTag(net.minecraft.core.HolderLookup.Provider provider, org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<CompoundTag> cir) {
+		EntityNbtHooks.onSaved(cir.getReturnValue());
 	}
 	*///?}
 }

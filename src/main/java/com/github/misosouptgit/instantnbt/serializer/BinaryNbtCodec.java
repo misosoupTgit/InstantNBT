@@ -11,10 +11,12 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 /**
- * Binary NBT codecs via CompoundTag (stable across 1.16.5–26.x).
+ * Binary NBT codecs — FastBinary first, NbtIo legacy fallback (Project Plan 10).
  */
 public final class BinaryNbtCodec {
 	private static final String WRAP_KEY = "_i";
+	private static final ThreadLocal<ByteArrayOutputStream> LEGACY_BUF =
+		ThreadLocal.withInitial(() -> new ByteArrayOutputStream(512));
 
 	private BinaryNbtCodec() {}
 
@@ -22,9 +24,13 @@ public final class BinaryNbtCodec {
 		if (tag instanceof CompoundTag) {
 			return encodeCompound((CompoundTag) tag);
 		}
-		CompoundTag wrap = new CompoundTag();
+		CompoundTag wrap = FastBinaryCodec.Pooling.newCompound();
 		wrap.put(WRAP_KEY, tag);
-		return encodeCompound(wrap);
+		try {
+			return encodeCompound(wrap);
+		} finally {
+			wrap.remove(WRAP_KEY);
+		}
 	}
 
 	public static Tag decode(byte[] data) throws IOException {
@@ -36,14 +42,39 @@ public final class BinaryNbtCodec {
 	}
 
 	public static byte[] encodeCompound(CompoundTag tag) throws IOException {
-		ByteArrayOutputStream bos = new ByteArrayOutputStream(256);
-		try (DataOutputStream out = new DataOutputStream(bos)) {
-			NbtIo.write(tag, out);
+		if (tag == null) {
+			throw new IllegalArgumentException("tag");
 		}
-		return bos.toByteArray();
+		try {
+			return FastBinaryCodec.encodeCompound(tag);
+		} catch (Throwable fastFail) {
+			FastBinaryCodec.noteFallback();
+			return encodeLegacy(tag);
+		}
 	}
 
 	public static CompoundTag decodeCompound(byte[] data) throws IOException {
+		if (data == null) {
+			throw new IllegalArgumentException("data");
+		}
+		try {
+			return FastBinaryCodec.decodeCompound(data);
+		} catch (Throwable fastFail) {
+			FastBinaryCodec.noteFallback();
+			return decodeLegacy(data);
+		}
+	}
+
+	private static byte[] encodeLegacy(CompoundTag tag) throws IOException {
+		ByteArrayOutputStream bos = LEGACY_BUF.get();
+		bos.reset();
+		DataOutputStream out = new DataOutputStream(bos);
+		NbtIo.write(tag, out);
+		out.flush();
+		return bos.toByteArray();
+	}
+
+	private static CompoundTag decodeLegacy(byte[] data) throws IOException {
 		try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(data))) {
 			return NbtIo.read(in);
 		}

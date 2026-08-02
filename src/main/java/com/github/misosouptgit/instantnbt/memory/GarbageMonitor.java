@@ -52,6 +52,12 @@ public final class GarbageMonitor {
 		}
 	}
 
+	public void sampleJvmHeap() {
+		Runtime rt = Runtime.getRuntime();
+		long used = rt.totalMemory() - rt.freeMemory();
+		updateRetainedEstimate((int) Math.min(Integer.MAX_VALUE, used));
+	}
+
 	public boolean shouldShrinkPools() {
 		return pressure != Pressure.NORMAL;
 	}

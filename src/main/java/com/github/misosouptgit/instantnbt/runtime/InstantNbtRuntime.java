@@ -26,6 +26,11 @@ import java.nio.file.Paths;
 public final class InstantNbtRuntime {
 	private static final InstantNbtRuntime INSTANCE = new InstantNbtRuntime();
 
+	/** Hot-path flags — avoid InstantNbtRuntime.get()+config on every NBT mutation/copy. */
+	private static volatile boolean HOT_TRACKING;
+	private static volatile boolean HOT_COPY_COW;
+	private static volatile boolean HOT_OPTS;
+
 	private final FeatureRegistry featureRegistry = new FeatureRegistry();
 	private final MemoryManager memoryManager = new MemoryManager();
 	private final SerializerFacade serializer = new SerializerFacade();
@@ -46,6 +51,36 @@ public final class InstantNbtRuntime {
 
 	public static InstantNbtRuntime get() {
 		return INSTANCE;
+	}
+
+	public static boolean hotTracking() {
+		return HOT_TRACKING;
+	}
+
+	public static boolean hotCopyCow() {
+		return HOT_COPY_COW;
+	}
+
+	public static boolean hotOpts() {
+		return HOT_OPTS;
+	}
+
+	private void refreshHotFlags() {
+		HOT_TRACKING = trackingActive();
+		boolean opts = optimizationsActive();
+		HOT_COPY_COW = opts && config.copyCowEnabled && featureRegistry.isEnabled(FeatureRegistry.FEAT_COW);
+		// Tick maintenance only when something actually needs per-tick work.
+		HOT_OPTS = opts && (
+			memoryManager.isStarted()
+				|| config.deltaSync
+				|| config.packetBatching
+				|| config.integratedDirectPass
+		);
+	}
+
+	/** Called from KillSwitch.reset / external toggles. */
+	public void refreshHotFlagsPublic() {
+		refreshHotFlags();
 	}
 
 	public RuntimePhase phase() {
@@ -127,8 +162,8 @@ public final class InstantNbtRuntime {
 		transition(RuntimePhase.BOOTSTRAP);
 
 		Path configPath = Paths.get("config", "instantnbt-common.toml");
+		// load() already applies preset then file overrides — do not re-applyPreset (wipes overrides).
 		config = InstantNbtConfig.load(configPath);
-		config.applyPreset(config.mode);
 
 		transition(RuntimePhase.CAPABILITY_SCAN);
 		featureRegistry.scanDefaults();
@@ -164,12 +199,16 @@ public final class InstantNbtRuntime {
 		} else {
 			transition(RuntimePhase.RUNNING);
 		}
+		refreshHotFlags();
 		InstantNBT.LOGGER.info(
-			"InstantNBT Runtime {} (mode={}, features={}, degraded={})",
+			"InstantNBT Runtime {} (mode={}, features={}, degraded={}, copyCow={}, trackChunk={}, autoIntern={})",
 			phase,
 			config.mode,
 			featureRegistry.enabledFeatures(),
-			degradedMode
+			degradedMode,
+			config.copyCowEnabled,
+			config.trackChunkNbt,
+			config.autoInternOnFreeze
 		);
 	}
 
@@ -180,6 +219,9 @@ public final class InstantNbtRuntime {
 		memoryManager.shutdown();
 		sharedTags.clear();
 		tracker.clear();
+		HOT_TRACKING = false;
+		HOT_COPY_COW = false;
+		HOT_OPTS = false;
 		transition(RuntimePhase.SHUTDOWN);
 		InstantNBT.LOGGER.info("InstantNBT Runtime shut down");
 	}
@@ -190,6 +232,7 @@ public final class InstantNbtRuntime {
 			if (phase == RuntimePhase.DEGRADED && !killSwitch.isEngaged()) {
 				transition(RuntimePhase.RUNNING);
 			}
+			refreshHotFlags();
 			return;
 		}
 		// Never escalate downward accidentally (MINIMAL stays MINIMAL).
@@ -211,21 +254,26 @@ public final class InstantNbtRuntime {
 			networkRuntime.configure(false, config.snapshotSync, config.integratedDirectPass, config.packetBatching);
 		}
 		transition(RuntimePhase.DEGRADED);
+		refreshHotFlags();
 		InstantNBT.LOGGER.warn("InstantNBT entered {} ({})", mode, reason);
 	}
 
 	public void onServerTickEnd() {
+		com.github.misosouptgit.instantnbt.diagnostics.StressHarness.tick();
+		if (!HOT_OPTS) {
+			return;
+		}
 		if (phase != RuntimePhase.RUNNING && phase != RuntimePhase.DEGRADED) {
 			return;
 		}
-		if (optimizationsActive()) {
+		if (memoryManager.isStarted()) {
 			memoryManager.onTickEnd();
 			memoryManager.respondToPressure();
-			networkRuntime.onTickEnd();
 			if (memoryManager.garbageMonitor().shouldDisableSnapshots()) {
 				sharedTags.setSuppressed(true);
 			}
 		}
+		networkRuntime.onTickEnd();
 	}
 
 	private void applyFeatureGates() {
