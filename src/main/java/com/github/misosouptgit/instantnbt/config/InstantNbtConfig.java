@@ -42,7 +42,9 @@ public final class InstantNbtConfig {
 	public boolean integratedDirectPass = true;
 
 	public boolean autoDetectMods = true;
-	public boolean forceLegacyForUnknown = true;
+	/** soft = warn only; strict = disable delta/direct-pass; off = ignore unknowns. */
+	public String unknownModPolicy = "soft";
+	public boolean forceLegacyForUnknown = false;
 
 	public boolean diagnosticsCommand = true;
 	public boolean diagnosticsOverlay = true;
@@ -64,11 +66,13 @@ public final class InstantNbtConfig {
 				fastCodec = false;
 				legacyFallback = true;
 				forceLegacyForUnknown = true;
+				unknownModPolicy = "strict";
 				ownershipStrict = true;
 				sharedTagEnabled = false;
 				trackItemStackNbt = false;
 				trackChunkNbt = false;
 				lazyDeserialize = false;
+				unsafeIO = false;
 				break;
 			case AGGRESSIVE:
 				deltaSync = true;
@@ -81,6 +85,9 @@ public final class InstantNbtConfig {
 				trackChunkNbt = true;
 				lazyDeserialize = false;
 				chunkEncodeThresholdBytes = 32 * 1024;
+				forceLegacyForUnknown = false;
+				unknownModPolicy = "soft";
+				unsafeIO = false; // still opt-in via config even in aggressive
 				break;
 			case BALANCED:
 			default:
@@ -94,6 +101,9 @@ public final class InstantNbtConfig {
 				trackChunkNbt = true;
 				lazyDeserialize = false;
 				chunkEncodeThresholdBytes = 64 * 1024;
+				forceLegacyForUnknown = false;
+				unknownModPolicy = "soft";
+				unsafeIO = false;
 				break;
 		}
 	}
@@ -147,6 +157,7 @@ public final class InstantNbtConfig {
 			w.write("integratedDirectPass = " + integratedDirectPass + "\n\n");
 			w.write("[compat]\n");
 			w.write("autoDetectMods = " + autoDetectMods + "\n");
+			w.write("unknownModPolicy = \"" + unknownModPolicy + "\"\n");
 			w.write("forceLegacyForUnknown = " + forceLegacyForUnknown + "\n\n");
 			w.write("[diagnostics]\n");
 			w.write("commandEnabled = " + diagnosticsCommand + "\n");
@@ -208,7 +219,12 @@ public final class InstantNbtConfig {
 		integratedDirectPass = bool(values, "network.integratedDirectPass", integratedDirectPass);
 
 		autoDetectMods = bool(values, "compat.autoDetectMods", autoDetectMods);
+		unknownModPolicy = str(values, "compat.unknownModPolicy", unknownModPolicy);
 		forceLegacyForUnknown = bool(values, "compat.forceLegacyForUnknown", forceLegacyForUnknown);
+		if (forceLegacyForUnknown && "soft".equalsIgnoreCase(unknownModPolicy)) {
+			// Backward-compat: old configs that set forceLegacyForUnknown=true mean strict.
+			unknownModPolicy = "strict";
+		}
 
 		diagnosticsCommand = bool(values, "diagnostics.commandEnabled", diagnosticsCommand);
 		diagnosticsOverlay = bool(values, "diagnostics.overlayEnabled", diagnosticsOverlay);

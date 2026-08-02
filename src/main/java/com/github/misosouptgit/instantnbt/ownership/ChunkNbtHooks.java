@@ -4,7 +4,7 @@ import com.github.misosouptgit.instantnbt.runtime.InstantNbtRuntime;
 import net.minecraft.nbt.CompoundTag;
 
 /**
- * Hooks for LevelChunk / ChunkSerializer NBT save-load paths.
+ * Hooks for LevelChunk / ChunkSerializer NBT save-load paths. Never throws into vanilla.
  */
 public final class ChunkNbtHooks {
 	private ChunkNbtHooks() {}
@@ -21,28 +21,31 @@ public final class ChunkNbtHooks {
 		if (tag == null) {
 			return;
 		}
-		InstantNbtRuntime runtime = InstantNbtRuntime.get();
-		if (!runtime.optimizationsActive()) {
-			return;
-		}
-		if (!runtime.config().trackChunkNbt) {
-			OwnedTag existing = runtime.tracker().find(tag);
-			if (existing != null && saved) {
-				TagWriteHooks.onMutate(tag);
+		try {
+			InstantNbtRuntime runtime = InstantNbtRuntime.get();
+			if (!runtime.trackingActive()) {
+				return;
 			}
-			return;
-		}
-		OwnedTag owned = runtime.tracker().find(tag);
-		if (owned == null) {
-			owned = OwnedTag.of(tag);
-			runtime.tracker().track(owned);
-		}
-		if (saved) {
-			if (runtime.config().autoFreezeSnapshot && owned.hasMeta() && !owned.isFrozen()) {
-				owned.markDirty();
-			} else {
-				TagWriteHooks.onMutate(tag);
+			if (!runtime.config().trackChunkNbt) {
+				OwnedTag existing = runtime.tracker().find(tag);
+				if (existing != null && saved) {
+					TagWriteHooks.onMutate(tag);
+				}
+				return;
 			}
+			OwnedTag owned = runtime.tracker().find(tag);
+			if (owned == null) {
+				owned = OwnedTag.of(tag);
+				runtime.tracker().track(owned);
+			}
+			if (saved) {
+				if (runtime.config().autoFreezeSnapshot && owned.hasMeta() && !owned.isFrozen()) {
+					owned.markDirty();
+				} else {
+					TagWriteHooks.onMutate(tag);
+				}
+			}
+		} catch (Throwable ignored) {
 		}
 	}
 }

@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Tracks ItemStack NBT mutations (pre-DataComponent + modern save surfaces).
+ * Tracks ItemStack NBT / CustomData mutations. Soft require=0 on modern APIs.
  */
 @Mixin(ItemStack.class)
 public abstract class ItemStackMixin {
@@ -32,15 +32,32 @@ public abstract class ItemStackMixin {
 			ItemStackNbtHooks.onTagPresent(tag);
 		}
 	}
-	//?} else if <1.21.2 {
-	/*@Inject(method = "save(Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"))
-	private void instantnbt$save(CompoundTag tag, CallbackInfoReturnable<CompoundTag> cir) {
-		ItemStackNbtHooks.onTagPresent(cir.getReturnValue());
-	}
-	*///?} else {
-	/*@Inject(method = "save", at = @At("RETURN"))
+	//?} else {
+	/*@Inject(method = "save", at = @At("RETURN"), require = 0)
 	private void instantnbt$saveModern(CallbackInfoReturnable<CompoundTag> cir) {
 		ItemStackNbtHooks.onTagPresent(cir.getReturnValue());
+	}
+
+	@Inject(method = "set", at = @At("TAIL"), require = 0)
+	private void instantnbt$setComponent(Object type, Object value, CallbackInfoReturnable<?> cir) {
+		trackCustomData(value);
+	}
+
+	private static void trackCustomData(Object value) {
+		if (value == null) {
+			return;
+		}
+		try {
+			String name = value.getClass().getName();
+			if (!name.endsWith("CustomData") && !name.contains("CustomData")) {
+				return;
+			}
+			Object tag = value.getClass().getMethod("copyTag").invoke(value);
+			if (tag instanceof CompoundTag) {
+				ItemStackNbtHooks.onTagPresent((CompoundTag) tag);
+			}
+		} catch (Throwable ignored) {
+		}
 	}
 	*///?}
 }

@@ -46,7 +46,6 @@ public final class DeltaCodec {
 
 	public byte[] encodeFull(OwnedTag tag) throws IOException {
 		CompoundTag compound = asCompound(tag.payload());
-		guard.validateTag(compound);
 		ByteArrayOutputStream bos = new ByteArrayOutputStream(256);
 		try (DataOutputStream out = new DataOutputStream(bos)) {
 			out.write(MAGIC);
@@ -58,9 +57,7 @@ public final class DeltaCodec {
 			out.writeInt(body.length);
 			out.write(body);
 		}
-		byte[] data = bos.toByteArray();
-		guard.validateEncodedSize(data);
-		return data;
+		return bos.toByteArray();
 	}
 
 	public byte[] encodeDelta(OwnedTag previous, OwnedTag current) throws IOException {
@@ -120,7 +117,6 @@ public final class DeltaCodec {
 			}
 		}
 		byte[] data = bos.toByteArray();
-		guard.validateEncodedSize(data);
 		return data;
 	}
 
@@ -128,7 +124,6 @@ public final class DeltaCodec {
 		if (packet == null || packet.length == 0) {
 			return ApplyResult.noop(base);
 		}
-		guard.validateEncodedSize(packet);
 		try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(packet))) {
 			byte[] magic = in.readNBytes(4);
 			if (!java.util.Arrays.equals(magic, MAGIC)) {
@@ -148,7 +143,6 @@ public final class DeltaCodec {
 				int len = in.readInt();
 				byte[] body = in.readNBytes(len);
 				CompoundTag decoded = BinaryNbtCodec.decodeCompound(body);
-				guard.validateTag(decoded);
 				return new ApplyResult(decoded, newGen, SyncMode.FULL, false);
 			}
 			if (mode != MODE_DELTA) {
@@ -167,7 +161,6 @@ public final class DeltaCodec {
 				Tag value = BinaryNbtCodec.decode(body);
 				target.put(key, value);
 			}
-			guard.validateTag(target);
 			return new ApplyResult(target, newGen, SyncMode.DELTA, false);
 		}
 	}

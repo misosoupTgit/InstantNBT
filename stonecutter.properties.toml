@@ -7,6 +7,10 @@ loomx.loom_version="1.16-SNAPSHOT"
 # - Forge: 1.17..1.20.1 (1.16.5 Forge unsupported).
 # - NeoForge: 1.20.2..26.1.2 (via 1.20.4+ targets + additionalVersions).
 
+# Optional Tier1 CurseMaven compileOnly (1.20.1). Format: "<projectId>:<fileId>"
+# deps.ae2_curse = "223794:4582991"
+# deps.create_curse = "328085:..."
+
 mod.id = "instantnbt"
 mod.name = "InstantNBT"
 mod.group = "com.github.misosouptgit"

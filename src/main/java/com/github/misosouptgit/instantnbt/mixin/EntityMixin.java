@@ -12,22 +12,27 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Entity.class)
 public abstract class EntityMixin {
 	//? if <1.21.6 {
-	@Inject(method = "saveWithoutId(Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"))
+	@Inject(method = "saveWithoutId(Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"), require = 0)
 	private void instantnbt$saveWithoutId(CompoundTag tag, CallbackInfoReturnable<CompoundTag> cir) {
 		EntityNbtHooks.onSaved(cir.getReturnValue());
 	}
 
-	@Inject(method = "load(Lnet/minecraft/nbt/CompoundTag;)V", at = @At("HEAD"))
+	@Inject(method = "load(Lnet/minecraft/nbt/CompoundTag;)V", at = @At("HEAD"), require = 0)
 	private void instantnbt$load(CompoundTag tag, CallbackInfo ci) {
 		EntityNbtHooks.onLoaded(tag);
 	}
 	//?} else {
-	/*@Inject(method = "saveWithoutId", at = @At("RETURN"))
+	/*@Inject(method = "saveWithoutId", at = @At("RETURN"), require = 0)
 	private void instantnbt$saveWithoutIdModern(CallbackInfoReturnable<?> cir) {
 		Object value = cir.getReturnValue();
 		if (value instanceof CompoundTag) {
 			EntityNbtHooks.onSaved((CompoundTag) value);
 		}
+	}
+
+	@Inject(method = "load", at = @At("HEAD"), require = 0)
+	private void instantnbt$loadModern(Object input, CallbackInfo ci) {
+		// ValueInput era: best-effort — no CompoundTag available at HEAD for all overloads.
 	}
 	*///?}
 }

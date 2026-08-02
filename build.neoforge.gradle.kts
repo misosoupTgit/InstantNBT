@@ -65,10 +65,19 @@ repositories {
 	mavenCentral()
 	strictMaven("https://maven.architectury.dev/", "dev.architectury") { name = "Architectury" }
 	strictMaven("https://api.modrinth.com/maven", "maven.modrinth") { name = "Modrinth" }
+	maven("https://cursemaven.com/") { name = "CurseMaven" }
 }
 
 dependencies {
 	implementation("dev.architectury:architectury-neoforge:${prop("deps.architectury")}")
+	val ae2Curse = runCatching { prop("deps.ae2_curse") }.getOrNull()
+	val createCurse = runCatching { prop("deps.create_curse") }.getOrNull()
+	if (!ae2Curse.isNullOrBlank()) {
+		compileOnly("curse.maven:ae2-${ae2Curse}")
+	}
+	if (!createCurse.isNullOrBlank()) {
+		compileOnly("curse.maven:create-${createCurse}")
+	}
 }
 
 tasks.named("createMinecraftArtifacts") {

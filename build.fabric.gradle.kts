@@ -66,6 +66,7 @@ repositories {
 	strictMaven("https://maven.terraformersmc.com/", "com.terraformersmc") { name = "TerraformersMC" }
 	strictMaven("https://maven.nucleoid.xyz/", "eu.pb4") { name = "Nucleoid" }
 	strictMaven("https://api.modrinth.com/maven", "maven.modrinth") { name = "Modrinth" }
+	maven("https://cursemaven.com/") { name = "CurseMaven" }
 }
 
 configurations.all {
@@ -88,4 +89,13 @@ dependencies {
 	val architecturyGroup = if (sc.current.parsed <= "1.16.5") "me.shedaniel" else "dev.architectury"
 	modImplementation("$architecturyGroup:architectury-fabric:${prop("deps.architectury")}")
 	modLocalRuntime("com.terraformersmc:modmenu:${prop("deps.modmenu")}")
+
+	val ae2Curse = runCatching { prop("deps.ae2_curse") }.getOrNull()
+	val createCurse = runCatching { prop("deps.create_curse") }.getOrNull()
+	if (!ae2Curse.isNullOrBlank() && sc.current.version.startsWith("1.20.1")) {
+		modCompileOnly("curse.maven:ae2-${ae2Curse}")
+	}
+	if (!createCurse.isNullOrBlank() && sc.current.version.startsWith("1.20.1")) {
+		modCompileOnly("curse.maven:create-${createCurse}")
+	}
 }

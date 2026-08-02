@@ -29,25 +29,32 @@ public final class SharedTagRegistry {
 			tag.share();
 			return tag;
 		}
-		OwnedMeta meta = tag.promote();
-		meta.setImmutable(true);
-		tag.share();
+		com.github.misosouptgit.instantnbt.runtime.LockOrderGuard.enter(
+			com.github.misosouptgit.instantnbt.runtime.LockOrderGuard.Domain.SHARED_TAG);
+		try {
+			OwnedMeta meta = tag.promote();
+			meta.setImmutable(true);
+			tag.share();
 
-		long key = structuralKey(tag.payload(), meta.generation());
-		List<Entry> list = buckets.computeIfAbsent(key, k -> new ArrayList<>(2));
-		synchronized (list) {
-			for (Entry entry : list) {
-				if (entry.tag.payload().equals(tag.payload())) {
-					hits.incrementAndGet();
-					entry.tag.acquire(meta.owner());
-					return entry.tag;
+			long key = structuralKey(tag.payload(), meta.generation());
+			List<Entry> list = buckets.computeIfAbsent(key, k -> new ArrayList<>(2));
+			synchronized (list) {
+				for (Entry entry : list) {
+					if (entry.tag.payload().equals(tag.payload())) {
+						hits.incrementAndGet();
+						entry.tag.acquire(meta.owner());
+						return entry.tag;
+					}
+					collisions.incrementAndGet();
 				}
-				collisions.incrementAndGet();
+				misses.incrementAndGet();
+				list.add(new Entry(tag, key));
+				maybeSuppress();
+				return tag;
 			}
-			misses.incrementAndGet();
-			list.add(new Entry(tag, key));
-			maybeSuppress();
-			return tag;
+		} finally {
+			com.github.misosouptgit.instantnbt.runtime.LockOrderGuard.leave(
+				com.github.misosouptgit.instantnbt.runtime.LockOrderGuard.Domain.SHARED_TAG);
 		}
 	}
 

@@ -71,6 +71,7 @@ repositories {
 	mavenCentral()
 	strictMaven("https://maven.architectury.dev/", "dev.architectury", "me.shedaniel") { name = "Architectury" }
 	strictMaven("https://api.modrinth.com/maven", "maven.modrinth") { name = "Modrinth" }
+	maven("https://cursemaven.com/") { name = "CurseMaven" }
 }
 
 dependencies {
@@ -78,6 +79,18 @@ dependencies {
 	// Published Forge mods are SRG-mapped; remapping config is required for official-mapped userdev.
 	modImplementation("$architecturyGroup:architectury-forge:${prop("deps.architectury")}")
 	annotationProcessor("org.spongepowered:mixin:0.8.5:processor")
+
+	// Optional Tier1 compileOnly (Plan 3.6). Enable via stonecutter props:
+	// deps.ae2_curse = "<projectId>:<fileId>"  e.g. "223794:4582991"
+	// deps.create_curse = "<projectId>:<fileId>"
+	val ae2Curse = runCatching { prop("deps.ae2_curse") }.getOrNull()
+	val createCurse = runCatching { prop("deps.create_curse") }.getOrNull()
+	if (!ae2Curse.isNullOrBlank() && sc.current.version.startsWith("1.20.1")) {
+		compileOnly("curse.maven:ae2-${ae2Curse}")
+	}
+	if (!createCurse.isNullOrBlank() && sc.current.version.startsWith("1.20.1")) {
+		compileOnly("curse.maven:create-${createCurse}")
+	}
 }
 
 tasks.named("createMinecraftArtifacts") {

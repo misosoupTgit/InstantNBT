@@ -64,8 +64,21 @@ public final class CompatEngine {
 			}
 		}
 
-		if (sawUnknown && config.forceLegacyForUnknown) {
-			applyUnknownSafe(runtime, features, report);
+		if (sawUnknown) {
+			String policy = config.unknownModPolicy == null ? "soft" : config.unknownModPolicy.toLowerCase(Locale.ROOT);
+			if ("strict".equals(policy) || config.forceLegacyForUnknown) {
+				applyUnknownSafe(runtime, features, report);
+			} else if ("off".equals(policy)) {
+				report.addRecommendation("Unknown mods present; unknownModPolicy=off (no auto fallback)");
+			} else {
+				report.addWarning("Unknown mods present; keeping optimizations (unknownModPolicy=soft)");
+				report.addRecommendation("Set compat.unknownModPolicy=\"strict\" if you see NBT sync issues with unknown mods");
+				runtime.safety().report(
+					com.github.misosouptgit.instantnbt.runtime.SafetyCoordinator.Severity.SOFT,
+					"compat-unknown",
+					"unknown mods: " + report.unknownMods().size()
+				);
+			}
 		}
 
 		if (!report.disabledFeatures().isEmpty()) {
@@ -121,6 +134,10 @@ public final class CompatEngine {
 		report.addDisabledFeature(FeatureRegistry.FEAT_DELTA_SYNC, "compat-unknown-safe");
 		report.addDisabledFeature(FeatureRegistry.FEAT_DIRECT_PASS, "compat-unknown-safe");
 		report.addRecommendation("Unknown mods detected; delta/direct-pass disabled (compat-unknown-safe)");
+		runtime.enterDegraded(
+			com.github.misosouptgit.instantnbt.runtime.DegradedMode.DEGRADED_COMPAT,
+			"compat-unknown-safe"
+		);
 	}
 
 	private static String safeVersion(String modId) {

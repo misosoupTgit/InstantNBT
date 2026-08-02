@@ -4,44 +4,41 @@ import com.github.misosouptgit.instantnbt.runtime.InstantNbtRuntime;
 import net.minecraft.nbt.CompoundTag;
 
 /**
- * Hooks for Entity / BlockEntity NBT save-load paths.
+ * Hooks for Entity / BlockEntity NBT save-load paths. Never throws into vanilla.
  */
 public final class EntityNbtHooks {
 	private EntityNbtHooks() {}
 
 	public static void onSaved(CompoundTag tag) {
-		if (tag == null) {
-			return;
-		}
-		InstantNbtRuntime runtime = InstantNbtRuntime.get();
-		if (!runtime.optimizationsActive()) {
-			return;
-		}
-		OwnedTag owned = runtime.tracker().find(tag);
-		if (owned == null) {
-			owned = OwnedTag.of(tag);
-			runtime.tracker().track(owned);
-		}
-		if (runtime.config().autoFreezeSnapshot && owned.hasMeta() && !owned.isFrozen()) {
-			// Save path is a natural snapshot boundary.
-			owned.markDirty();
-		} else {
-			TagWriteHooks.onMutate(tag);
-		}
+		track(tag, true);
 	}
 
 	public static void onLoaded(CompoundTag tag) {
+		track(tag, false);
+	}
+
+	private static void track(CompoundTag tag, boolean saved) {
 		if (tag == null) {
 			return;
 		}
-		InstantNbtRuntime runtime = InstantNbtRuntime.get();
-		if (!runtime.optimizationsActive()) {
-			return;
-		}
-		OwnedTag owned = runtime.tracker().find(tag);
-		if (owned == null) {
-			owned = OwnedTag.of(tag);
-			runtime.tracker().track(owned);
+		try {
+			InstantNbtRuntime runtime = InstantNbtRuntime.get();
+			if (!runtime.trackingActive()) {
+				return;
+			}
+			OwnedTag owned = runtime.tracker().find(tag);
+			if (owned == null) {
+				owned = OwnedTag.of(tag);
+				runtime.tracker().track(owned);
+			}
+			if (saved) {
+				if (runtime.config().autoFreezeSnapshot && owned.hasMeta() && !owned.isFrozen()) {
+					owned.markDirty();
+				} else {
+					TagWriteHooks.onMutate(tag);
+				}
+			}
+		} catch (Throwable ignored) {
 		}
 	}
 }

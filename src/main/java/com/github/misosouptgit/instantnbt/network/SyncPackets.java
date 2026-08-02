@@ -105,10 +105,14 @@ public final class SyncPackets {
 	private static void applyIncoming(byte[] payload, long baseGeneration, boolean full, Player player) {
 		try {
 			InstantNbtRuntime runtime = InstantNbtRuntime.get();
-			if (!runtime.optimizationsActive()) {
+			if (!runtime.trackingActive()) {
 				return;
 			}
 			OwnedTag applied = runtime.network().apply(payload, full ? -1L : baseGeneration);
+			try {
+				runtime.serializer().checkOwnedPacket(payload, applied.payload());
+			} catch (Throwable ignored) {
+			}
 			runtime.tracker().track(applied);
 			runtime.network().rememberApplied(player, applied);
 			runtime.network().transport().offerPacket(payload);
@@ -124,6 +128,11 @@ public final class SyncPackets {
 			InstantNbtRuntime.get().network().requestFullResync(player);
 		} catch (Exception ex) {
 			InstantNBT.LOGGER.warn("Failed to apply InstantNBT sync packet: {}", ex.toString());
+			InstantNbtRuntime.get().safety().report(
+				com.github.misosouptgit.instantnbt.runtime.SafetyCoordinator.Severity.FEATURE,
+				"network-apply",
+				ex.toString()
+			);
 			InstantNbtRuntime.get().network().requestFullResync(player);
 		}
 	}

@@ -4,7 +4,7 @@ import com.github.misosouptgit.instantnbt.runtime.InstantNbtRuntime;
 import net.minecraft.nbt.CompoundTag;
 
 /**
- * ItemStack NBT tracking hooks. Opt-in via config; otherwise only mutates already-tracked tags.
+ * ItemStack NBT tracking hooks. Never throws into vanilla.
  */
 public final class ItemStackNbtHooks {
 	private ItemStackNbtHooks() {}
@@ -13,19 +13,22 @@ public final class ItemStackNbtHooks {
 		if (tag == null) {
 			return;
 		}
-		InstantNbtRuntime runtime = InstantNbtRuntime.get();
-		if (!runtime.optimizationsActive()) {
-			return;
-		}
-		OwnedTag existing = runtime.tracker().find(tag);
-		if (existing == null) {
-			if (!runtime.config().trackItemStackNbt) {
+		try {
+			InstantNbtRuntime runtime = InstantNbtRuntime.get();
+			if (!runtime.trackingActive()) {
 				return;
 			}
-			OwnedTag created = OwnedTag.of(tag);
-			runtime.tracker().track(created);
-			return;
+			OwnedTag existing = runtime.tracker().find(tag);
+			if (existing == null) {
+				if (!runtime.config().trackItemStackNbt) {
+					return;
+				}
+				OwnedTag created = OwnedTag.of(tag);
+				runtime.tracker().track(created);
+				return;
+			}
+			TagWriteHooks.onMutate(tag);
+		} catch (Throwable ignored) {
 		}
-		TagWriteHooks.onMutate(tag);
 	}
 }

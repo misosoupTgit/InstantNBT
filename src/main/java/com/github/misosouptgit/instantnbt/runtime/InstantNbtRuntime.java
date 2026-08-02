@@ -36,6 +36,7 @@ public final class InstantNbtRuntime {
 	private final CompatEngine compatEngine = new CompatEngine();
 	private final DiagnosticsService diagnostics = new DiagnosticsService(this);
 	private final KillSwitch killSwitch = new KillSwitch();
+	private final SafetyCoordinator safety = new SafetyCoordinator(this);
 
 	private InstantNbtConfig config = InstantNbtConfig.defaults();
 	private volatile RuntimePhase phase = RuntimePhase.BOOTSTRAP;
@@ -99,10 +100,24 @@ public final class InstantNbtRuntime {
 		return killSwitch;
 	}
 
+	public SafetyCoordinator safety() {
+		return safety;
+	}
+
+	/**
+	 * Heavy optimizations (delta / direct-pass / shared intern). Off under kill / MINIMAL.
+	 */
 	public boolean optimizationsActive() {
 		return config.runtimeEnabled
 			&& !killSwitch.isEngaged()
 			&& degradedMode != DegradedMode.DEGRADED_MINIMAL;
+	}
+
+	/**
+	 * Lightweight tracking / soft CoW hooks. Remains available in DEGRADED_SAFE/COMPAT.
+	 */
+	public boolean trackingActive() {
+		return config.runtimeEnabled && !killSwitch.isEngaged();
 	}
 
 	public synchronized void bootstrap() {
@@ -119,6 +134,7 @@ public final class InstantNbtRuntime {
 		featureRegistry.scanDefaults();
 		applyFeatureGates();
 		compatEngine.scanAndApply(this);
+		com.github.misosouptgit.instantnbt.compat.Tier1CompatProbe.logPresence();
 
 		transition(RuntimePhase.RUNTIME_INIT);
 		if (config.poolEnabled || config.arenaEnabled) {
@@ -126,6 +142,7 @@ public final class InstantNbtRuntime {
 		}
 		serializer.configure(config.fastCodec, config.legacyFallback, config.mode == RuntimePreset.SAFE && !config.fastCodec);
 		serializer.configureLazy(config.lazyDeserialize, config.chunkEncodeThresholdBytes);
+		serializer.configureUnsafeIo(config.unsafeIO && config.mode == RuntimePreset.AGGRESSIVE);
 		serializer.setGuard(ValidationGuard.defaults());
 		networkRuntime.configure(config.deltaSync, config.snapshotSync, config.integratedDirectPass, config.packetBatching);
 		OwnedTag.configureCow(featureRegistry.isEnabled(FeatureRegistry.FEAT_COW), CowStrategy.SHALLOW_FIRST, 4);
@@ -175,6 +192,10 @@ public final class InstantNbtRuntime {
 			}
 			return;
 		}
+		// Never escalate downward accidentally (MINIMAL stays MINIMAL).
+		if (mode.ordinal() < degradedMode.ordinal()) {
+			return;
+		}
 		degradedMode = mode;
 		if (mode == DegradedMode.DEGRADED_MINIMAL) {
 			featureRegistry.disableAllOptimizations();
@@ -184,6 +205,10 @@ public final class InstantNbtRuntime {
 			featureRegistry.disable(FeatureRegistry.FEAT_DELTA_SYNC);
 			featureRegistry.disable(FeatureRegistry.FEAT_DIRECT_PASS);
 			networkRuntime.configure(false, config.snapshotSync, false, config.packetBatching);
+			// Keep tracking / CoW / serializer available — only drop risky network shortcuts.
+		} else if (mode == DegradedMode.DEGRADED_COMPAT) {
+			featureRegistry.disable(FeatureRegistry.FEAT_DELTA_SYNC);
+			networkRuntime.configure(false, config.snapshotSync, config.integratedDirectPass, config.packetBatching);
 		}
 		transition(RuntimePhase.DEGRADED);
 		InstantNBT.LOGGER.warn("InstantNBT entered {} ({})", mode, reason);

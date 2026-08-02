@@ -94,7 +94,15 @@ public final class DiagnosticsService {
 		List<String> lines = new ArrayList<>();
 		lines.add("serializer encode/decode counts only (micro profiler TBD)");
 		lines.add("encode=" + runtime.serializer().encodeCount() + " decode=" + runtime.serializer().decodeCount());
-		lines.add("optimizationsActive=" + runtime.optimizationsActive() + " killSwitch=" + runtime.killSwitch().isEngaged());
+		lines.add("optimizationsActive=" + runtime.optimizationsActive() + " trackingActive=" + runtime.trackingActive());
+		lines.add("killSwitch=" + runtime.killSwitch().isEngaged());
+		lines.add("safety soft/feature/hard/critical="
+			+ runtime.safety().softTotal() + "/"
+			+ runtime.safety().featureTotal() + "/"
+			+ runtime.safety().hardTotal() + "/"
+			+ runtime.safety().criticalTotal());
+		lines.add("guard skips/rejects=" + runtime.serializer().guardSkips() + "/" + runtime.serializer().guardRejections());
+		lines.add("lockOrderViolations=" + com.github.misosouptgit.instantnbt.runtime.LockOrderGuard.violations());
 		return lines;
 	}
 

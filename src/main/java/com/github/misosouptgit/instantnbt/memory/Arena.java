@@ -1,5 +1,7 @@
 package com.github.misosouptgit.instantnbt.memory;
 
+import com.github.misosouptgit.instantnbt.runtime.LockOrderGuard;
+
 import java.util.ArrayDeque;
 import java.util.function.Supplier;
 
@@ -26,22 +28,32 @@ public final class Arena {
 
 	@SuppressWarnings("unchecked")
 	public <T> T acquire(Supplier<T> factory) {
-		ensureOpen();
-		Object pooled = recycled.pollFirst();
-		if (pooled != null) {
+		LockOrderGuard.enter(LockOrderGuard.Domain.ARENA);
+		try {
+			ensureOpenSoft();
+			Object pooled = recycled.pollFirst();
+			if (pooled != null) {
+				live++;
+				return (T) pooled;
+			}
 			live++;
-			return (T) pooled;
+			return factory.get();
+		} finally {
+			LockOrderGuard.leave(LockOrderGuard.Domain.ARENA);
 		}
-		live++;
-		return factory.get();
 	}
 
 	public void release(Object value) {
-		if (value == null || !open) {
-			return;
+		LockOrderGuard.enter(LockOrderGuard.Domain.ARENA);
+		try {
+			if (value == null || !open) {
+				return;
+			}
+			recycled.offerLast(value);
+			live = Math.max(0, live - 1);
+		} finally {
+			LockOrderGuard.leave(LockOrderGuard.Domain.ARENA);
 		}
-		recycled.offerLast(value);
-		live = Math.max(0, live - 1);
 	}
 
 	/**
@@ -65,9 +77,10 @@ public final class Arena {
 		open = true;
 	}
 
-	private void ensureOpen() {
+	private void ensureOpenSoft() {
 		if (!open) {
-			throw new IllegalStateException("arena is closed");
+			// Soft reopen — never crash game threads on late arena use after pressure close.
+			open = true;
 		}
 	}
 }

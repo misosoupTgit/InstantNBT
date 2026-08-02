@@ -173,26 +173,59 @@ public final class OwnedTag {
 
 	/**
 	 * Ensure the payload is writable. SHARED / immutable triggers CoW split (Project Plan 6.3 / 7.2).
+	 * Soft variant used by mixins never throws into vanilla write paths.
 	 */
 	public Tag ensureWritable() {
+		return ensureWritable(false);
+	}
+
+	public Tag ensureWritableSoft() {
+		return ensureWritable(true);
+	}
+
+	private Tag ensureWritable(boolean soft) {
 		materializeIfNeeded();
 		if (meta == null) {
 			return payload;
 		}
 		if (meta.state() == OwnershipState.DETACHED) {
+			if (soft) {
+				return payload;
+			}
 			throw new IllegalStateException("cannot write DETACHED tag");
 		}
 		if (meta.state() == OwnershipState.FROZEN || meta.immutable()) {
 			if (!cowEnabled) {
+				if (soft) {
+					try {
+						payload = payload.copy();
+						meta.setState(OwnershipState.UNIQUE);
+						meta.setImmutable(false);
+						meta.bumpGeneration();
+					} catch (RuntimeException ignored) {
+						// leave payload as-is
+					}
+					return payload;
+				}
 				throw new IllegalStateException("cannot write FROZEN/immutable tag; copy first");
 			}
-			return split().payload;
+			return splitSoft(soft).payload;
 		}
 		if (meta.state() == OwnershipState.SHARED) {
 			if (!cowEnabled) {
+				if (soft) {
+					try {
+						payload = payload.copy();
+						meta.setState(OwnershipState.UNIQUE);
+						meta.setImmutable(false);
+						meta.bumpGeneration();
+					} catch (RuntimeException ignored) {
+					}
+					return payload;
+				}
 				throw new IllegalStateException("cannot write SHARED tag while CoW disabled");
 			}
-			split();
+			splitSoft(soft);
 		}
 		return payload;
 	}
@@ -201,16 +234,26 @@ public final class OwnedTag {
 	 * CoW split using configured shallow/adaptive strategy (Project Plan 7).
 	 */
 	public OwnedTag split() {
+		return splitSoft(false);
+	}
+
+	private OwnedTag splitSoft(boolean soft) {
 		materializeIfNeeded();
 		OwnedMeta m = promote();
-		Tag copy = cowEnabled
-			? CowEngine.splitPayload(payload, defaultStrategy, deepThreshold)
-			: payload.copy();
-		payload = copy;
-		m.setState(OwnershipState.UNIQUE);
-		m.setImmutable(false);
-		m.setRefCount(1);
-		m.bumpGeneration();
+		try {
+			Tag copy = cowEnabled
+				? CowEngine.splitPayload(payload, defaultStrategy, deepThreshold)
+				: payload.copy();
+			payload = copy;
+			m.setState(OwnershipState.UNIQUE);
+			m.setImmutable(false);
+			m.setRefCount(1);
+			m.bumpGeneration();
+		} catch (RuntimeException ex) {
+			if (!soft) {
+				throw ex;
+			}
+		}
 		return this;
 	}
 
