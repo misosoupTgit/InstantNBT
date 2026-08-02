@@ -1,0 +1,229 @@
+loomx.loom_version="1.16-SNAPSHOT"
+
+# Version matrix notes:
+# - Stonecutter compile targets are the "primary" MC versions below.
+# - Nearby patches are declared only via publish.additionalVersions (one jar, multi MC versions on upload).
+# - Full Mojang releases 1.16.5..26.1.2 covered for Fabric.
+# - Forge: 1.17..1.20.1 (1.16.5 Forge unsupported).
+# - NeoForge: 1.20.2..26.1.2 (via 1.20.4+ targets + additionalVersions).
+
+mod.id = "instantnbt"
+mod.name = "InstantNBT"
+mod.group = "com.github.misosouptgit"
+mod.version = "0.1.0"
+mod.channel_tag = ""
+mod.description = "High-performance Minecraft NBT Runtime (Memory / Ownership / Sync)."
+mod.authors = ["MisoPy"]
+mod.contributors = []
+mod.inception_year = "2026"
+mod.license.name = "MIT"
+mod.license.url = "https://opensource.org/licenses/MIT"
+mod.license.dist = "repo"
+mod.sources_url = "https://github.com/misosoupTgit/InstantNBT"
+mod.homepage_url = "https://github.com/misosoupTgit/InstantNBT"
+mod.issues_url = "https://github.com/misosoupTgit/InstantNBT/issues"
+mod.discord_url = ""
+mod.environment = "both"
+[[mod.pom.developers]]
+id = "misopy"
+name = "MisoPy"
+url = "https://github.com/misosoupTgit"
+
+[fabric]
+deps.fabric-loader = "0.16.14"
+
+[fabric."1.16.5"]
+deps.minecraft = "1.16.5"
+deps.fabric-api = "0.42.0+1.16"
+deps.modmenu = "1.16.23"
+deps.architectury = "1.32.68"
+
+[fabric."1.17.1"]
+deps.minecraft = "1.17.1"
+deps.fabric-api = "0.46.1+1.17"
+deps.modmenu = "2.0.17"
+deps.architectury = "2.10.12"
+publish.additionalVersions = ["1.17"]
+
+[fabric."1.18.2"]
+deps.minecraft = "1.18.2"
+deps.fabric-api = "0.77.0+1.18.2"
+deps.modmenu = "3.2.5"
+deps.architectury = "4.12.94"
+publish.additionalVersions = ["1.18", "1.18.1"]
+
+[fabric."1.19.2"]
+deps.minecraft = "1.19.2"
+deps.fabric-api = "0.77.0+1.19.2"
+deps.modmenu = "4.2.0-beta.2"
+deps.architectury = "6.6.92"
+publish.additionalVersions = ["1.19", "1.19.1"]
+
+[fabric."1.19.4"]
+deps.minecraft = "1.19.4"
+deps.fabric-api = "0.87.2+1.19.4"
+deps.modmenu = "6.3.1"
+deps.architectury = "8.2.91"
+publish.additionalVersions = ["1.19.3"]
+
+[fabric."1.20.1"]
+deps.minecraft = "1.20.1"
+deps.fabric-api = "0.92.11+1.20.1"
+deps.modmenu = "7.2.2"
+deps.architectury = "9.2.14"
+publish.additionalVersions = ["1.20"]
+
+[fabric."1.20.4"]
+deps.minecraft = "1.20.4"
+deps.fabric-api = "0.97.3+1.20.4"
+deps.modmenu = "9.2.0"
+deps.architectury = "11.1.17"
+publish.additionalVersions = ["1.20.2", "1.20.3"]
+
+[fabric."1.20.6"]
+deps.minecraft = "1.20.6"
+deps.fabric-api = "0.100.8+1.20.6"
+deps.modmenu = "10.0.0"
+deps.architectury = "12.1.4"
+deps.fabric-loader = "0.16.14"
+publish.additionalVersions = ["1.20.5"]
+
+[fabric."1.21.1"]
+deps.minecraft = "1.21.1"
+deps.fabric-api = "0.116.14+1.21.1"
+deps.modmenu = "11.0.4"
+deps.architectury = "13.0.11"
+deps.fabric-loader = "0.16.14"
+publish.additionalVersions = ["1.21"]
+
+[fabric."1.21.3"]
+deps.minecraft = "1.21.3"
+deps.fabric-api = "0.114.1+1.21.3"
+deps.modmenu = "12.0.1"
+deps.architectury = "14.0.4"
+deps.fabric-loader = "0.16.14"
+publish.additionalVersions = ["1.21.2"]
+
+[fabric."1.21.4"]
+deps.minecraft = "1.21.4"
+deps.fabric-api = "0.119.4+1.21.4"
+deps.modmenu = "13.0.4"
+deps.architectury = "15.0.3"
+deps.fabric-loader = "0.16.14"
+
+[fabric."1.21.5"]
+deps.minecraft = "1.21.5"
+deps.fabric-api = "0.128.2+1.21.5"
+deps.modmenu = "14.0.2"
+deps.architectury = "16.1.4"
+deps.fabric-loader = "0.16.14"
+
+[fabric."1.21.8"]
+deps.minecraft = "1.21.8"
+deps.fabric-api = "0.136.1+1.21.8"
+deps.modmenu = "15.0.2"
+deps.architectury = "17.0.8"
+deps.fabric-loader = "0.16.14"
+publish.additionalVersions = ["1.21.6", "1.21.7"]
+
+[fabric."1.21.11"]
+deps.minecraft = "1.21.11"
+deps.fabric-api = "0.141.5+1.21.11"
+deps.modmenu = "17.0.1-beta.1"
+deps.architectury = "19.0.1"
+deps.fabric-loader = "0.17.3"
+publish.additionalVersions = ["1.21.9", "1.21.10"]
+
+[fabric."26.1.2"]
+deps.minecraft = "26.1.2"
+deps.fabric-api = "0.155.2+26.1.2"
+deps.modmenu = "18.0.0"
+deps.architectury = "20.0.10"
+deps.fabric-loader = "0.19.2"
+publish.additionalVersions = ["26.1.1", "26.1"]
+
+[forge]
+
+[forge."1.17.1"]
+deps.minecraft = "1.17.1"
+deps.forge = "37.1.1"
+deps.architectury = "2.10.12"
+publish.additionalVersions = ["1.17"]
+
+[forge."1.18.2"]
+deps.minecraft = "1.18.2"
+deps.forge = "40.2.21"
+deps.architectury = "4.12.94"
+publish.additionalVersions = ["1.18", "1.18.1"]
+
+[forge."1.19.2"]
+deps.minecraft = "1.19.2"
+deps.forge = "43.5.2"
+deps.architectury = "6.6.92"
+publish.additionalVersions = ["1.19", "1.19.1"]
+
+[forge."1.19.4"]
+deps.minecraft = "1.19.4"
+deps.forge = "45.3.0"
+deps.architectury = "8.2.91"
+publish.additionalVersions = ["1.19.3"]
+
+[forge."1.20.1"]
+deps.minecraft = "1.20.1"
+deps.forge = "47.3.0"
+deps.architectury = "9.2.14"
+publish.additionalVersions = ["1.20"]
+
+[neoforge]
+
+[neoforge."1.20.4"]
+deps.minecraft = "1.20.4"
+deps.neoforge = "20.4.251"
+deps.architectury = "11.1.17"
+publish.additionalVersions = ["1.20.2", "1.20.3"]
+
+[neoforge."1.20.6"]
+deps.minecraft = "1.20.6"
+deps.neoforge = "20.6.139"
+deps.architectury = "12.1.4"
+publish.additionalVersions = ["1.20.5"]
+
+[neoforge."1.21.1"]
+deps.minecraft = "1.21.1"
+deps.neoforge = "21.1.243"
+deps.architectury = "13.0.11"
+publish.additionalVersions = ["1.21"]
+
+[neoforge."1.21.3"]
+deps.minecraft = "1.21.3"
+deps.neoforge = "21.3.97"
+deps.architectury = "14.0.4"
+publish.additionalVersions = ["1.21.2"]
+
+[neoforge."1.21.4"]
+deps.minecraft = "1.21.4"
+deps.neoforge = "21.4.157"
+deps.architectury = "15.0.3"
+
+[neoforge."1.21.5"]
+deps.minecraft = "1.21.5"
+deps.neoforge = "21.5.98"
+deps.architectury = "16.1.4"
+
+[neoforge."1.21.8"]
+deps.minecraft = "1.21.8"
+deps.neoforge = "21.8.54"
+deps.architectury = "17.0.8"
+publish.additionalVersions = ["1.21.6", "1.21.7"]
+
+[neoforge."1.21.11"]
+deps.minecraft = "1.21.11"
+deps.neoforge = "21.11.44"
+deps.architectury = "19.0.1"
+publish.additionalVersions = ["1.21.9", "1.21.10"]
+
+[neoforge."26.1.2"]
+deps.minecraft = "26.1.2"
+deps.neoforge = "26.1.2.87"
+deps.architectury = "20.0.10"
+publish.additionalVersions = ["26.1.1", "26.1"]

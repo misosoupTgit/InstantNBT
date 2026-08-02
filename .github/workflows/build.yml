@@ -1,0 +1,153 @@
+name: Build and Release
+
+on:
+  pull_request:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "Create a GitHub Release with all jars after a successful build"
+        type: boolean
+        default: true
+      version:
+        description: "Release tag (e.g. v1.0.0). Defaults to v + mod.version from stonecutter.properties.toml"
+        required: false
+        type: string
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        target:
+          - 1.16.5-fabric
+          - 1.17.1-fabric
+          - 1.17.1-forge
+          - 1.18.2-fabric
+          - 1.18.2-forge
+          - 1.19.2-fabric
+          - 1.19.2-forge
+          - 1.19.4-fabric
+          - 1.19.4-forge
+          - 1.20.1-fabric
+          - 1.20.1-forge
+          - 1.20.4-fabric
+          - 1.20.4-neoforge
+          - 1.20.6-fabric
+          - 1.20.6-neoforge
+          - 1.21.1-fabric
+          - 1.21.1-neoforge
+          - 1.21.3-fabric
+          - 1.21.3-neoforge
+          - 1.21.4-fabric
+          - 1.21.4-neoforge
+          - 1.21.5-fabric
+          - 1.21.5-neoforge
+          - 1.21.8-fabric
+          - 1.21.8-neoforge
+          - 1.21.11-fabric
+          - 1.21.11-neoforge
+          - 26.1.2-fabric
+          - 26.1.2-neoforge
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDKs
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+            25
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Build ${{ matrix.target }}
+        env:
+          GRADLE_OPTS: >-
+            -Dorg.gradle.daemon=false
+            -Dorg.gradle.parallel=false
+            -Dorg.gradle.workers.max=2
+            -Dorg.gradle.jvmargs=-Xmx4G
+            -Dfile.encoding=UTF-8
+        run: |
+          chmod +x gradlew
+          ./gradlew :${{ matrix.target }}:buildAndCollect --stacktrace --no-daemon
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: jar-${{ matrix.target }}
+          path: build/dist/*.jar
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: GitHub Release
+    needs: build
+    if: >-
+      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      || (github.event_name == 'workflow_dispatch' && inputs.create_release)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          elif [ -n "${{ inputs.version }}" ]; then
+            TAG="${{ inputs.version }}"
+          else
+            VER=$(grep -E '^mod\.version\s*=' stonecutter.properties.toml | head -n1 | sed 's/.*=\s*"\?\([^"]*\)"\?/\1/' | tr -d '[:space:]')
+            TAG="v${VER}"
+          fi
+          case "$TAG" in
+            v*) ;;
+            *) TAG="v${TAG}" ;;
+          esac
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag: ${TAG}"
+
+      - name: Download all jars
+        uses: actions/download-artifact@v4
+        with:
+          pattern: jar-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: InstantNBT ${{ steps.meta.outputs.tag }}
+          draft: false
+          prerelease: ${{ contains(steps.meta.outputs.tag, '-') || contains(steps.meta.outputs.tag, 'alpha') || contains(steps.meta.outputs.tag, 'beta') || contains(steps.meta.outputs.tag, 'rc') }}
+          generate_release_notes: true
+          files: dist/*.jar
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

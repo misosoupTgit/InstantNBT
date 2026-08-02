@@ -1,0 +1,71 @@
+# --- Local secrets / env ---
+.env
+.env.*
+!.env.template
+*.local
+
+# --- Gradle / Kotlin ---
+.gradle/
+**/.gradle/
+.kotlin/
+.cache/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+build-logic/build/
+build-logic/.gradle/
+
+# --- Stonecutter / Loom / Minecraft ---
+# Per-version trees under versions/ are generated (caches, runs, remaps).
+versions/
+run/
+runs/
+**/run/
+**/runs/
+**/remappedSrc/
+**/natives/
+loom-cache/
+.loom/
+
+# --- JVM crash / dump / logs ---
+hs_err_pid*
+replay_pid*
+*.hprof
+*.log
+logs/
+
+# --- Local reference trees (not part of this mod) ---
+/NoRespLoadFix-Normal/
+/NoRespLoadFix-Normal-*/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- IDE ---
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+.vscode/
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# --- Python (leftover template tooling) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
