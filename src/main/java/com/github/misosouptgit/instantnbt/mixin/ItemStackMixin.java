@@ -10,22 +10,23 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Tracks ItemStack NBT / CustomData mutations. Soft require=0 on modern APIs.
+ * Tracks ItemStack NBT / CustomData mutations.
+ * Modern (>=1.20.5) path only hooks save surfaces to avoid DataComponent descriptor mismatches.
  */
 @Mixin(ItemStack.class)
 public abstract class ItemStackMixin {
 	//? if <1.20.5 {
-	@Inject(method = "setTag(Lnet/minecraft/nbt/CompoundTag;)V", at = @At("TAIL"))
+	@Inject(method = "setTag(Lnet/minecraft/nbt/CompoundTag;)V", at = @At("TAIL"), require = 0)
 	private void instantnbt$setTag(CompoundTag tag, CallbackInfo ci) {
 		ItemStackNbtHooks.onTagPresent(tag);
 	}
 
-	@Inject(method = "getOrCreateTag()Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"))
+	@Inject(method = "getOrCreateTag()Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"), require = 0)
 	private void instantnbt$getOrCreateTag(CallbackInfoReturnable<CompoundTag> cir) {
 		ItemStackNbtHooks.onTagPresent(cir.getReturnValue());
 	}
 
-	@Inject(method = "getTag()Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"))
+	@Inject(method = "getTag()Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"), require = 0)
 	private void instantnbt$getTag(CallbackInfoReturnable<CompoundTag> cir) {
 		CompoundTag tag = cir.getReturnValue();
 		if (tag != null) {
@@ -33,30 +34,16 @@ public abstract class ItemStackMixin {
 		}
 	}
 	//?} else {
-	/*@Inject(method = "save", at = @At("RETURN"), require = 0)
-	private void instantnbt$saveModern(CallbackInfoReturnable<CompoundTag> cir) {
+	/*@Inject(method = "save(Lnet/minecraft/core/HolderLookup$Provider;)Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"), require = 0)
+	private void instantnbt$saveModern(net.minecraft.core.HolderLookup.Provider provider, CallbackInfoReturnable<CompoundTag> cir) {
 		ItemStackNbtHooks.onTagPresent(cir.getReturnValue());
 	}
 
-	@Inject(method = "set", at = @At("TAIL"), require = 0)
-	private void instantnbt$setComponent(Object type, Object value, CallbackInfoReturnable<?> cir) {
-		trackCustomData(value);
-	}
-
-	private static void trackCustomData(Object value) {
-		if (value == null) {
-			return;
-		}
-		try {
-			String name = value.getClass().getName();
-			if (!name.endsWith("CustomData") && !name.contains("CustomData")) {
-				return;
-			}
-			Object tag = value.getClass().getMethod("copyTag").invoke(value);
-			if (tag instanceof CompoundTag) {
-				ItemStackNbtHooks.onTagPresent((CompoundTag) tag);
-			}
-		} catch (Throwable ignored) {
+	@Inject(method = "save(Lnet/minecraft/core/HolderLookup$Provider;Lnet/minecraft/nbt/Tag;)Lnet/minecraft/nbt/Tag;", at = @At("RETURN"), require = 0)
+	private void instantnbt$saveInto(net.minecraft.core.HolderLookup.Provider provider, net.minecraft.nbt.Tag tag, CallbackInfoReturnable<net.minecraft.nbt.Tag> cir) {
+		Object value = cir.getReturnValue();
+		if (value instanceof CompoundTag) {
+			ItemStackNbtHooks.onTagPresent((CompoundTag) value);
 		}
 	}
 	*///?}
