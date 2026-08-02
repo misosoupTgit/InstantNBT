@@ -62,9 +62,13 @@ public final class DiagnosticsService {
 		lines.add("full=" + runtime.network().fullSyncs() + " delta=" + runtime.network().deltaSyncs()
 			+ " snapshot=" + runtime.network().snapshotSyncs() + " direct=" + runtime.network().directPasses()
 			+ " fallbacks=" + runtime.network().fallbacks());
+		lines.add("transport directOffered=" + runtime.network().transport().directOffered()
+			+ " packetsOffered=" + runtime.network().transport().packetsOffered()
+			+ " packetsDelivered=" + runtime.network().transport().packetsDelivered());
 		lines.add("integrated=" + runtime.integrated().isIntegrated());
 		lines.add("encode=" + runtime.serializer().encodeCount() + " decode=" + runtime.serializer().decodeCount()
-			+ " legacyRetries=" + runtime.serializer().legacyRetries());
+			+ " legacyRetries=" + runtime.serializer().legacyRetries()
+			+ " guardRejections=" + runtime.serializer().guardRejections());
 		return lines;
 	}
 

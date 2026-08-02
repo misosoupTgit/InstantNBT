@@ -24,6 +24,7 @@ public final class InstantNBT {
 		}
 		initialized = true;
 		InstantNbtRuntime.get().bootstrap();
+		com.github.misosouptgit.instantnbt.client.ClientOverlay.register();
 		LOGGER.info("InstantNBT initialized (phase={})", InstantNbtRuntime.get().phase());
 	}
 

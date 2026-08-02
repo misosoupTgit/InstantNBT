@@ -25,6 +25,14 @@ public final class InstantNbtCommands {
 		root.then(Commands.literal("network").executes(ctx -> dump(ctx.getSource(), InstantNbtRuntime.get().diagnostics().networkLines())));
 		root.then(Commands.literal("compat").executes(ctx -> dump(ctx.getSource(), InstantNbtRuntime.get().diagnostics().compatLines())));
 		root.then(Commands.literal("profiler").executes(ctx -> dump(ctx.getSource(), InstantNbtRuntime.get().diagnostics().profilerLines())));
+		root.then(Commands.literal("benchmark").executes(ctx -> {
+			List<com.github.misosouptgit.instantnbt.benchmark.MicroBenchmark.Result> results =
+				com.github.misosouptgit.instantnbt.benchmark.MicroBenchmark.runAll(InstantNbtRuntime.get());
+			for (com.github.misosouptgit.instantnbt.benchmark.MicroBenchmark.Result result : results) {
+				reply(ctx.getSource(), result.format());
+			}
+			return 1;
+		}));
 		root.then(Commands.literal("export").executes(ctx -> {
 			try {
 				java.nio.file.Path path = InstantNbtRuntime.get().diagnostics().exportJson();
