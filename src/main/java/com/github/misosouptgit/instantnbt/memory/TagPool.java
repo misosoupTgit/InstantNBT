@@ -22,6 +22,7 @@ public final class TagPool {
 	private int highWater = 256;
 	private long hits;
 	private long misses;
+	private long shrinkEvents;
 
 	public TagPool() {
 		for (Slot slot : Slot.values()) {
@@ -63,6 +64,15 @@ public final class TagPool {
 				q.pollFirst();
 			}
 		}
+		shrinkEvents++;
+	}
+
+	public int inventory(Slot slot) {
+		return queues.get(slot).size();
+	}
+
+	public long shrinkEvents() {
+		return shrinkEvents;
 	}
 
 	public void clear() {

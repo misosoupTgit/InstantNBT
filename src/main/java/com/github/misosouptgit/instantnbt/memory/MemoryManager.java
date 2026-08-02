@@ -5,6 +5,7 @@ package com.github.misosouptgit.instantnbt.memory;
  */
 public final class MemoryManager {
 	private final TagPool pool = new TagPool();
+	private final NbtObjectPool nbtPool = new NbtObjectPool(pool);
 	private final Allocator allocator = new Allocator(pool);
 	private final RefCounter refCounter = new RefCounter();
 	private final GarbageMonitor garbageMonitor = new GarbageMonitor();
@@ -13,6 +14,7 @@ public final class MemoryManager {
 	public void start() {
 		started = true;
 		pool.setHighWater(256);
+		nbtPool.warmup();
 	}
 
 	public void shutdown() {
@@ -30,6 +32,10 @@ public final class MemoryManager {
 		return pool;
 	}
 
+	public NbtObjectPool nbtPool() {
+		return nbtPool;
+	}
+
 	public Allocator allocator() {
 		return allocator;
 	}
@@ -42,9 +48,6 @@ public final class MemoryManager {
 		return garbageMonitor;
 	}
 
-	/**
-	 * Tick-end maintenance: flush ref deltas locally, compact arenas, react to pressure.
-	 */
 	public void onTickEnd() {
 		if (!started) {
 			return;
@@ -56,9 +59,6 @@ public final class MemoryManager {
 		}
 	}
 
-	/**
-	 * Apply Project Plan 5.4 pressure response steps that are local to Memory Manager.
-	 */
 	public void respondToPressure() {
 		if (garbageMonitor.shouldShrinkPools()) {
 			pool.shrink();

@@ -1,0 +1,49 @@
+{
+  "rules": [
+    {
+      "id": "ae2-delta-caution",
+      "modId": "ae2",
+      "versionRange": "*",
+      "action": "DISABLE_FEATURE",
+      "feature": "network.delta",
+      "reason": "AE2 stores dense NBT; prefer snapshot/full sync until Tier1 verified",
+      "tier": 1
+    },
+    {
+      "id": "create-shared-caution",
+      "modId": "create",
+      "versionRange": "*",
+      "action": "DISABLE_FEATURE",
+      "feature": "memory.shared_tag",
+      "reason": "Create mutates compound graphs aggressively; disable SharedTag by default",
+      "tier": 1
+    },
+    {
+      "id": "curios-safe",
+      "modId": "curios",
+      "versionRange": "*",
+      "action": "WARN",
+      "feature": null,
+      "reason": "Curios present — ownership acquire/release recommended for cross-thread item NBT",
+      "tier": 1
+    },
+    {
+      "id": "emi-warn",
+      "modId": "emi",
+      "versionRange": "*",
+      "action": "WARN",
+      "feature": null,
+      "reason": "EMI present — client-heavy NBT reads; overlay diagnostics recommended",
+      "tier": 2
+    },
+    {
+      "id": "unknown-safe",
+      "modId": "*",
+      "versionRange": "*",
+      "action": "APPLY_SAFE_PROFILE",
+      "feature": null,
+      "reason": "Unknown mods: apply compat-unknown-safe when forceLegacyForUnknown is enabled",
+      "tier": 3
+    }
+  ]
+}
