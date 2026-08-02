@@ -13,12 +13,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(CompoundTag.class)
 public abstract class CompoundTagMixin {
-	@Inject(method = "put(Ljava/lang/String;Lnet/minecraft/nbt/Tag;)Lnet/minecraft/nbt/Tag;", at = @At("HEAD"))
+	@Inject(method = "put(Ljava/lang/String;Lnet/minecraft/nbt/Tag;)Lnet/minecraft/nbt/Tag;", at = @At("HEAD"), require = 0)
 	private void instantnbt$put(String key, Tag value, CallbackInfoReturnable<Tag> cir) {
 		TagWriteHooks.onMutate((Tag) (Object) this);
 	}
 
-	@Inject(method = "remove(Ljava/lang/String;)V", at = @At("HEAD"))
+	@Inject(method = "remove(Ljava/lang/String;)V", at = @At("HEAD"), require = 0)
 	private void instantnbt$remove(String key, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
 		TagWriteHooks.onMutate((Tag) (Object) this);
 	}

@@ -10,24 +10,32 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(BlockEntity.class)
 public abstract class BlockEntityMixin {
-	//? if <1.21.5 {
-	@Inject(method = "saveAdditional(Lnet/minecraft/nbt/CompoundTag;)V", at = @At("RETURN"))
+	//? if <1.20.5 {
+	@Inject(method = "saveAdditional(Lnet/minecraft/nbt/CompoundTag;)V", at = @At("RETURN"), require = 0)
 	private void instantnbt$saveAdditional(CompoundTag tag, CallbackInfo ci) {
 		EntityNbtHooks.onSaved(tag);
 	}
 
-	@Inject(method = "load(Lnet/minecraft/nbt/CompoundTag;)V", at = @At("HEAD"))
+	@Inject(method = "load(Lnet/minecraft/nbt/CompoundTag;)V", at = @At("HEAD"), require = 0)
 	private void instantnbt$load(CompoundTag tag, CallbackInfo ci) {
 		EntityNbtHooks.onLoaded(tag);
 	}
 	//?} else {
-	/*@Inject(method = "saveAdditional", at = @At("RETURN"))
-	private void instantnbt$saveAdditionalModern(CompoundTag tag, CallbackInfo ci) {
+	/*@Inject(
+		method = "saveAdditional(Lnet/minecraft/nbt/CompoundTag;Lnet/minecraft/core/HolderLookup$Provider;)V",
+		at = @At("RETURN"),
+		require = 0
+	)
+	private void instantnbt$saveAdditional(CompoundTag tag, net.minecraft.core.HolderLookup.Provider provider, CallbackInfo ci) {
 		EntityNbtHooks.onSaved(tag);
 	}
 
-	@Inject(method = "loadAdditional", at = @At("HEAD"))
-	private void instantnbt$loadAdditionalModern(CompoundTag tag, CallbackInfo ci) {
+	@Inject(
+		method = "loadAdditional(Lnet/minecraft/nbt/CompoundTag;Lnet/minecraft/core/HolderLookup$Provider;)V",
+		at = @At("HEAD"),
+		require = 0
+	)
+	private void instantnbt$loadAdditional(CompoundTag tag, net.minecraft.core.HolderLookup.Provider provider, CallbackInfo ci) {
 		EntityNbtHooks.onLoaded(tag);
 	}
 	*///?}

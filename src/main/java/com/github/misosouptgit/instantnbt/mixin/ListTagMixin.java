@@ -11,17 +11,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(ListTag.class)
 public abstract class ListTagMixin {
 	//? if >=1.17 {
-	@Inject(method = "set(ILnet/minecraft/nbt/Tag;)Lnet/minecraft/nbt/Tag;", at = @At("HEAD"))
+	@Inject(method = "set(ILnet/minecraft/nbt/Tag;)Lnet/minecraft/nbt/Tag;", at = @At("HEAD"), require = 0)
 	private void instantnbt$set(int index, Tag tag, CallbackInfoReturnable<Tag> cir) {
 		TagWriteHooks.onMutate((Tag) (Object) this);
 	}
 
-	@Inject(method = "add(ILnet/minecraft/nbt/Tag;)V", at = @At("HEAD"))
+	@Inject(method = "add(ILnet/minecraft/nbt/Tag;)V", at = @At("HEAD"), require = 0)
 	private void instantnbt$add(int index, Tag tag, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
 		TagWriteHooks.onMutate((Tag) (Object) this);
 	}
 
-	@Inject(method = "remove(I)Lnet/minecraft/nbt/Tag;", at = @At("HEAD"))
+	@Inject(method = "remove(I)Lnet/minecraft/nbt/Tag;", at = @At("HEAD"), require = 0)
 	private void instantnbt$remove(int index, CallbackInfoReturnable<Tag> cir) {
 		TagWriteHooks.onMutate((Tag) (Object) this);
 	}

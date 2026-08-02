@@ -39,6 +39,9 @@ platform {
 }
 
 loom {
+	mixin {
+		defaultRefmapName.set("${prop("mod.id")}.refmap.json")
+	}
 	val awFile = rootProject.file("src/main/resources/aw/${sc.current.version}.accesswidener")
 	if (awFile.exists() && awFile.readText().lines().any { it.isNotBlank() && !it.startsWith("accessWidener") && !it.startsWith("#") }) {
 		accessWidenerPath = awFile

@@ -5,7 +5,7 @@
   "compatibilityLevel": "${java}",
   "refmap": "instantnbt.refmap.json",
   "injectors": {
-    "defaultRequire": 1
+    "defaultRequire": 0
   },
   "mixins": [
     "MinecraftServerMixin",
